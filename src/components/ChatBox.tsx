@@ -49,19 +49,19 @@ export default function ChatBox({ room, userName }: Props) {
     const fullMessage = `${userName}: ${message}`;
     setMessages((prevMessages) => [
       ...prevMessages,
-      { sender: "You", text: fullMessage },
+      // { sender: "You", text: fullMessage },
     ]);
 
     // Emit the message to the server
     socket.emit("send-message", { room, message: fullMessage });
   };
-
+console.log(messages)
   return (
     <div className="flex flex-col space-y-4">
-      <div className="border p-4 h-96 overflow-y-auto bg-white rounded shadow">
+      <div className="border p-4 h-96 overflow-y-auto bg-gray-700 rounded shadow">
         {messages.map((msg, idx) => (
           <div key={idx} className={`text-sm ${msg.sender === "You" ? "text-blue-600" : "text-gray-800"}`}>
-            <strong>{msg.sender}: </strong>
+            {/* <strong>{msg.sender}: </strong> */}
             {msg.text}
           </div>
         ))}
