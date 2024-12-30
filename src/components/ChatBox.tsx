@@ -12,7 +12,7 @@ type Message = {
   text: string;
 };
 
-let socket: any | null = null;
+let socket: typeof Socket | null = null;
 
 export default function ChatBox({ room, userName }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);

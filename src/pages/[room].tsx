@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
 import ChatBox from '../components/ChatBox';
 import JoinRoomForm from './../components/JoinRoomModal';
