@@ -22,7 +22,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       path: "/api/socket",
       addTrailingSlash: false,
       cors: {
-        origin: "https://super-chat-puce.vercel.app", // Adjust as needed
+        origin: "https://chat-super.vercel.app/", // Adjust as needed
         methods: ["GET", "POST"],
       }
     });
