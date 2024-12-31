@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import ChatBox from '../components/ChatBox';
 import JoinRoomForm from './../components/JoinRoomModal';
+import '../app/globals.css';
 
 export default function Room() {
   const [name, setName] = useState<string | null>(null);

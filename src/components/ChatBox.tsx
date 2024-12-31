@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { default as io, Socket } from "socket.io-client"; // Correct import for io
+import { default as io, Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
 
 type Props = {
@@ -27,14 +27,10 @@ export default function ChatBox({ room, userName }: Props) {
     socket.emit("join-room", room);
 
     // Listen for incoming messages
-    socket.on("receive-message", (message: string) => {
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        { sender: "Other", text: message },
-      ]);
+    socket.on("receive-message", (data: { sender: string; text: string }) => {
+      setMessages((prevMessages) => [...prevMessages, data]);
     });
 
-    // Cleanup on component unmount
     return () => {
       if (socket) {
         socket.disconnect();
@@ -46,22 +42,25 @@ export default function ChatBox({ room, userName }: Props) {
   const sendMessage = (message: string) => {
     if (!socket) return;
 
-    const fullMessage = `${userName}: ${message}`;
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      // { sender: "You", text: fullMessage },
-    ]);
+    const messageData = { sender: userName, text: message };
 
-    // Emit the message to the server
-    socket.emit("send-message", { room, message: fullMessage });
+    // Emit the message to the server (server will broadcast it back)
+    socket.emit("send-message", { room, message: messageData });
   };
-console.log(messages)
+
   return (
-    <div className="flex flex-col space-y-4">
-      <div className="border p-4 h-96 overflow-y-auto bg-gray-700 rounded shadow">
+    <div className="flex flex-col h-full space-y-4">
+      <div className="border p-4 h-96 overflow-y-auto bg-gray-50 rounded-lg shadow-md">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`text-sm ${msg.sender === "You" ? "text-blue-600" : "text-gray-800"}`}>
-            {/* <strong>{msg.sender}: </strong> */}
+          <div
+            key={idx}
+            className={`p-3 mb-2 rounded-lg shadow-sm text-sm font-medium max-w-xs w-fit ${
+              msg.sender === userName ? "ml-auto bg-blue-500 text-white" : "mr-auto bg-gray-200 text-gray-800"
+            }`}
+          >
+            <strong className="block mb-1 text-xs font-bold text-gray-600">
+              {msg.sender === userName ? "You" : msg.sender}
+            </strong>
             {msg.text}
           </div>
         ))}

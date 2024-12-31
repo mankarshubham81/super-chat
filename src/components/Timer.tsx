@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 type Props = {
   onTimeUp: () => void;
@@ -25,8 +25,12 @@ export default function Timer({ onTimeUp }: Props) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  return <div className="text-gray-500 text-sm">Time left: {formatTime(timeLeft)}</div>;
+  return (
+    <div className="text-gray-800 text-sm font-semibold mt-2">
+      Time left: {formatTime(timeLeft)}
+    </div>
+  );
 }
