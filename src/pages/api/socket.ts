@@ -21,6 +21,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const io = new Server(socket.server, {
       path: "/api/socket",
       addTrailingSlash: false,
+      cors: {
+        origin: "*", // Adjust as needed
+        methods: ["GET", "POST"],
+      }
     });
     socket.server.io = io;
 

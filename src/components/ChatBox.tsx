@@ -19,7 +19,7 @@ export default function ChatBox({ room, userName }: Props) {
 
   useEffect(() => {
     // Initialize the socket connection
-    socket = io({
+    socket = io("https://super-chat-puce.vercel.app", {
       path: "/api/socket",
     });
 
