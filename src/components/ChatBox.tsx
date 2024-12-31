@@ -21,7 +21,8 @@ export default function ChatBox({ room, userName }: Props) {
     // Initialize the socket connection
     socket = io("https://chat-super.vercel.app", {
       path: "/api/socket",
-    });
+      transports: ["websocket", "polling"], // Ensures compatibility in production
+    }); 
 
     // Join the specified room
     socket.emit("join-room", room);

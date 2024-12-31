@@ -20,12 +20,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     // Initialize the Socket.io server
     const io = new Server(socket.server, {
       path: "/api/socket",
-      addTrailingSlash: false,
       cors: {
-        origin: ["https://chat-super.vercel.app"], // Adjust as needed
+        origin: ["https://chat-super.vercel.app", "http://localhost:3000"], // Adjust for production and development
         methods: ["GET", "POST"],
         credentials: true,
-      }
+      },
     });
     socket.server.io = io;
 
