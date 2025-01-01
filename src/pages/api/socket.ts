@@ -21,7 +21,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const io = new Server(socket.server, {
       path: "/api/socket",
       cors: {
-        origin: ["https://chat-super.vercel.app", "http://localhost:3000"], // Adjust for production and development
+        origin: ["https://super-chat-nrdp.onrender.com","https://chat-super.vercel.app", "http://localhost:3000"], // Adjust for production and development
         methods: ["GET", "POST"],
         credentials: true,
       },
