@@ -19,7 +19,7 @@ export default function ChatBox({ room, userName }: Props) {
 
   useEffect(() => {
     // Initialize the socket connection
-    socket = io("https://super-chat-nrdp.onrender.com", {
+    socket = io("https://chat-super.vercel.app", {
       path: "/api/socket",
       transports: ["websocket", "polling"], // Ensures compatibility in production
     }); 
