@@ -19,10 +19,9 @@ export default function ChatBox({ room, userName }: Props) {
 
   useEffect(() => {
     // Initialize the socket connection
-    socket = io("https://super-chat-nrdp.onrender.com", {
+    socket = io({
       path: "/api/socket",
-      transports: ["websocket", "polling"], // Ensures compatibility in production
-    }); 
+    });
 
     // Join the specified room
     socket.emit("join-room", room);
