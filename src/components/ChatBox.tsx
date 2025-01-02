@@ -20,10 +20,15 @@ export default function ChatBox({ room, userName }: Props) {
 
   useEffect(() => {
     // Initialize the socket connection
-    socket = io("https://super-chat-backend.onrender.com");
+    socket = io("https://super-chat-backend.onrender.com", {
+    transports: ["websocket", "polling"], // Ensures compatibility across environments
+  });
 
+    
     // Join the specified room
     socket.emit("join-room", room);
+
+    console.log("sss", socket)
 
     // Listen for incoming messages
     socket.on("receive-message", (data: { sender: string; text: string }) => {
