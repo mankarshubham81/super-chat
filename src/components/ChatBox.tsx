@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { default as io, Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
+// import { socket } from './../utils/socket';
 
 type Props = {
   room: string;
@@ -19,9 +20,7 @@ export default function ChatBox({ room, userName }: Props) {
 
   useEffect(() => {
     // Initialize the socket connection
-    let socket = io("https://super-chat-backend.onrender.com", {
-      path: "/socket.io",
-    });
+    socket = io("https://super-chat-backend.onrender.com");
 
     // Join the specified room
     socket.emit("join-room", room);
