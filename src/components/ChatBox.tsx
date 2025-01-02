@@ -19,8 +19,8 @@ export default function ChatBox({ room, userName }: Props) {
 
   useEffect(() => {
     // Initialize the socket connection
-    socket = io({
-      path: "/api/socket",
+    let socket = io("https://super-chat-backend.onrender.com", {
+      path: "/socket.io",
     });
 
     // Join the specified room
@@ -34,7 +34,6 @@ export default function ChatBox({ room, userName }: Props) {
     return () => {
       if (socket) {
         socket.disconnect();
-        socket = null;
       }
     };
   }, [room]);
