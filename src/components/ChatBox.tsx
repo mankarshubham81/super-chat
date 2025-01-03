@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import io, { Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
+import { motion } from "framer-motion"; // For animations
 
 type Message = {
   id: string;
@@ -71,6 +72,21 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     };
   }, [room, userName]);
 
+
+  let lastTapTime: number | null = null;
+
+  const handleDoubleTap = (e: React.PointerEvent, msg: Message) => {
+    const currentTime = Date.now();
+    const tapGap = 300; // Max gap between two taps (ms)
+
+    if (lastTapTime && currentTime - lastTapTime < tapGap) {
+      handleReply(msg); // Trigger reply action
+      lastTapTime = null; // Reset last tap time
+    } else {
+      lastTapTime = currentTime;
+    }
+  };
+
   const toggleUserList = () => setShowUserList((prev) => !prev);
 
   const sendMessage = (text: string) => {
@@ -111,7 +127,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-purple-50 to-purple-100">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Chat Header */}
       <div className="sticky top-0 z-10 bg-purple-700 text-white p-4 shadow-md flex justify-between items-center">
         <div className="text-lg font-bold">{room}</div>
@@ -134,7 +150,12 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
       {/* User List */}
       {showUserList && (
-        <div className="bg-white p-4 shadow-md">
+        <motion.div
+          className="bg-white p-4 shadow-md"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
           <ul>
             {activeUsers.map((user, idx) => (
               <li key={idx} className="text-gray-800">
@@ -142,70 +163,95 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
               </li>
             ))}
           </ul>
-        </div>
+        </motion.div>
       )}
 
       {/* Messages Section */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-br from-gray-200 via-white to-gray-200">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${
-              msg.sender === userName ? "justify-end" : "justify-start"
-            }`}
-            onDoubleClick={() => handleReply(msg)}
-          >
-            <div
-              className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xs transition-transform transform hover:scale-105 ${
-                msg.sender === userName
-                  ? "bg-indigo-500 text-white"
-                  : "bg-gray-200 text-gray-800"
-              }`}
-            >
-              {msg.replyTo && (
-                <div className="mb-2 text-xs italic text-green-500">
-                  Replying to: {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
-                </div>
-              )}
-              <div className="text-xs font-semibold text-gray-400">
-                {msg.sender === userName ? "You" : msg.sender}
-              </div>
-              <p>{msg.text}</p>
-              <div className="text-right text-xs text-gray-400 mt-1">
-                {formatTimestamp(msg.timestamp)}
-              </div>
-              <div className="flex space-x-2 mt-2">
-                {["👍", "❤️", "😂"].map((reaction) => (
-                  <button
-                    key={reaction}
-                    className="text-xs bg-indigo-100 hover:bg-indigo-200 rounded px-1 py-0.5 transition-all duration-200"
-                    onClick={() => reactToMessage(msg.id, reaction)}
-                  >
-                    {reaction} {msg.reactions?.[reaction] || 0}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+         <motion.div
+         key={msg.id}
+         className={`flex ${
+           msg.sender === userName ? "justify-end" : "justify-start"
+         }`}
+         initial={{ opacity: 0, scale: 0.9 }}
+         animate={{ opacity: 1, scale: 1 }}
+         transition={{ duration: 0.3 }}
+         drag="x"
+         dragConstraints={{ left: 0, right: 0 }}
+         onDragEnd={(event, info) => {
+           if (info.offset.x > 100) {
+             // Trigger the reply action if swiped right
+             handleReply(msg);
+           }
+         }}
+         onDoubleClick={() => {
+           // Trigger reply action on double-click for desktop
+           handleReply(msg);
+         }}
+         onPointerDown={(e) => handleDoubleTap(e, msg)}
+       >
+         <div
+           className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xs transition-transform transform hover:scale-105 ${
+             msg.sender === userName
+               ? "bg-indigo-500 text-white"
+               : "bg-gray-200 text-gray-800"
+           }`}
+         >
+           {msg.replyTo && (
+             <div className="mb-2 text-xs italic text-green-500">
+               Replying to: {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
+             </div>
+           )}
+           <div className="text-xs font-semibold text-gray-400">
+             {msg.sender === userName ? "You" : msg.sender}
+           </div>
+           <p>{msg.text}</p>
+           <div className="text-right text-xs text-gray-400 mt-1">
+             {formatTimestamp(msg.timestamp)}
+           </div>
+           <div className="flex space-x-2 mt-2">
+             {["👍", "❤️", "😂"].map((reaction) => (
+               <button
+                 key={reaction}
+                 className="text-xs bg-indigo-100 hover:bg-indigo-200 rounded px-1 py-0.5 transition-all duration-200"
+                 onClick={() => reactToMessage(msg.id, reaction)}
+               >
+                 {reaction} {msg.reactions?.[reaction] || 0}
+               </button>
+             ))}
+           </div>
+         </div>
+       </motion.div>
         ))}
       </div>
 
       {replyingTo && (
-          <div className="mb-2 text-sm bg-yellow-100 text-yellow-700 p-2 rounded-md shadow-sm animate-fadeIn">
-            Replying to: <strong>{replyingTo.text}</strong>
-            <button
-              className="text-indigo-500 underline ml-2"
-              onClick={() => setReplyingTo(null)}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+        <motion.div
+          className="mb-2 text-sm bg-yellow-100 text-yellow-700 p-2 rounded-md shadow-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          Replying to: <strong>{replyingTo.text}</strong>
+          <button
+            className="text-indigo-500 underline ml-2"
+            onClick={() => setReplyingTo(null)}
+          >
+            Cancel
+          </button>
+        </motion.div>
+      )}
 
       {/* Typing Indicator */}
-      <div className="sticky bottom-28 px-4 text-sm italic text-purple-500">
+      <motion.div
+        className="sticky bottom-28 px-4 text-sm italic text-purple-500"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: typingUsers.length > 0 ? 1 : 0 }}
+        transition={{ duration: 0.2 }}
+      >
         {typingUsers.length > 0 && `${typingUsers.join(", ")} ${typingUsers.length > 1 ? "are" : "is"} typing...`}
-      </div>
+      </motion.div>
 
       {/* Message Input */}
       <div className="sticky bottom-0 bg-purple-700 p-4 shadow-md">
