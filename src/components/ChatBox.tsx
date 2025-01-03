@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { default as io, Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
-// import { socket } from './../utils/socket';
 
 type Props = {
   room: string;
@@ -17,33 +16,46 @@ let socket: typeof Socket | null = null;
 
 export default function ChatBox({ room, userName }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   useEffect(() => {
     // Initialize the socket connection
     socket = io("https://super-chat-backend.onrender.com", {
-    transports: ["websocket", "polling"], // Ensures compatibility across environments
-  });
-
-    
+      transports: ["websocket", "polling"], // Ensures compatibility across environments
+    });
+  
+    // Event: Connected to the server
+    socket.on("connect", () => {
+      setSocketConnected(true);
+      console.log("Socket connected:", socket?.id);
+    });
+  
     // Join the specified room
     socket.emit("join-room", room);
-
-    console.log("sss", socket)
-
+  
     // Listen for incoming messages
-    socket.on("receive-message", (data: { sender: string; text: string }) => {
+    const handleMessage = (data: { sender: string; text: string }) => {
       setMessages((prevMessages) => [...prevMessages, data]);
+    };
+  
+    socket.on("receive-message", handleMessage);
+  
+    // Event: Disconnected from the server
+    socket.on("disconnect", () => {
+      setSocketConnected(false);
+      console.log("Socket disconnected");
     });
-
+  
     return () => {
       if (socket) {
+        socket.off("receive-message", handleMessage);
         socket.disconnect();
       }
     };
   }, [room]);
 
   const sendMessage = (message: string) => {
-    if (!socket) return;
+    if (!socket || !socketConnected) return;
 
     const messageData = { sender: userName, text: message };
 
