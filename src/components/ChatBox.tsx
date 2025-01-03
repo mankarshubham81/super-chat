@@ -27,7 +27,10 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const socketRef = useRef<typeof Socket | null>(null);
 
   useEffect(() => {
-    const socket = io(process.env.REACT_APP_BACKEND_URL || "http://localhost:3001", {
+    // const socket = io(process.env.REACT_APP_BACKEND_URL || "http://localhost:3001", {
+    //   transports: ["websocket", "polling"],
+    // });
+    const socket = io("https://super-chat-backend.onrender.com", {
       transports: ["websocket", "polling"],
     });
     socketRef.current = socket;
@@ -167,7 +170,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
               }`}
             >
               {msg.replyTo && (
-                <div className="mb-2 text-xs italic text-gray-500">
+                <div className="mb-2 text-xs italic text-green-500">
                   Replying to: {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
                 </div>
               )}
