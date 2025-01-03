@@ -9,7 +9,6 @@ type Message = {
   timestamp: string;
   reactions?: Record<string, number>;
   replyTo?: string | null;
-  readBy?: string[]; // List of users who read the message
 };
 
 type User = {
@@ -21,16 +20,13 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const [messages, setMessages] = useState<Message[]>([]);
   const [socketConnected, setSocketConnected] = useState(false);
   const [activeUsers, setActiveUsers] = useState<User[]>([]);
-  const [notifications, setNotifications] = useState<string[]>([]);
+  const [showUserList, setShowUserList] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const socketRef = useRef<typeof Socket | null>(null);
 
   useEffect(() => {
-    // const socket = io(process.env.REACT_APP_BACKEND_URL || "http://localhost:3001", {
-    //   transports: ["websocket", "polling"],
-    // });
-    const socket = io("https://super-chat-backend.onrender.com", {
+    const socket = io(process.env.REACT_APP_BACKEND_URL || "http://localhost:3001", {
       transports: ["websocket", "polling"],
     });
     socketRef.current = socket;
@@ -40,26 +36,14 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       socket.emit("join-room", { room, userName });
     });
 
-    socket.on("disconnect", () => {
-      setSocketConnected(false);
-    });
+    socket.on("disconnect", () => setSocketConnected(false));
 
-    socket.on("user-list", (users: User[]) => {
-      setActiveUsers(users);
-    });
+    socket.on("user-list", (users: User[]) => setActiveUsers(users));
 
-    socket.on("notification", (message: string) => {
-      setNotifications((prev) => [...prev, message]);
-      setTimeout(() => {
-        setNotifications((prev) => prev.slice(1));
-      }, 5000); // Auto-dismiss notifications after 5 seconds
-    });
-
-    socket.on("typing", (typingUser: string) => {
-      setTypingUsers((prev) => [...new Set([...prev, typingUser])]);
-      setTimeout(() => {
-        setTypingUsers((prev) => prev.filter((user) => user !== typingUser));
-      }, 2000);
+    socket.on("typing", (typingUsersList: string[]) => {
+      setTypingUsers(
+        typingUsersList.filter((typingUser) => typingUser !== userName)
+      );
     });
 
     socket.on("receive-message", (message: Message) => {
@@ -87,6 +71,8 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     };
   }, [room, userName]);
 
+  const toggleUserList = () => setShowUserList((prev) => !prev);
+
   const sendMessage = (text: string) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -110,47 +96,54 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const handleTyping = () => {
     const socket = socketRef.current;
     if (!socket) return;
+
     socket.emit("typing", { room });
   };
 
+  const formatTimestamp = (isoTimestamp: string) => {
+    const date = new Date(isoTimestamp);
+    const now = new Date();
+    const diff = (now.getTime() - date.getTime()) / 1000;
+
+    if (diff < 60) return `${Math.floor(diff)} secs ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)} mins ago`;
+    return date.toLocaleString("en-US", { hour: "numeric", minute: "numeric", hour12: true });
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-purple-50 to-purple-100">
       {/* Chat Header */}
-      <div className="sticky top-0 z-10 bg-white border-b p-4 shadow-md flex justify-between items-center">
-        <div className="text-lg font-semibold text-indigo-600">{room}</div>
+      <div className="sticky top-0 z-10 bg-purple-700 text-white p-4 shadow-md flex justify-between items-center">
+        <div className="text-lg font-bold">{room}</div>
         <div className="flex items-center space-x-2">
           <span
-            className={`text-sm font-semibold ${
-              socketConnected ? "text-green-500" : "text-red-500"
+            className={`text-sm ${
+              socketConnected ? "text-green-300" : "text-red-300"
             }`}
           >
             {socketConnected ? "Connected" : "Disconnected"}
           </span>
           <button
-            onClick={() => console.log("Show active users")}
-            className="text-sm bg-indigo-500 text-white px-3 py-1 rounded-md shadow-md hover:bg-indigo-600 transition-transform transform hover:scale-105"
+            onClick={toggleUserList}
+            className="text-sm bg-purple-500 px-3 py-1 rounded-md hover:bg-purple-600 transition-transform transform hover:scale-105"
           >
-            Active Users ({activeUsers.length})
+            Users ({activeUsers.length})
           </button>
         </div>
       </div>
 
-      {/* Notifications */}
-      <div className="absolute top-16 right-4 z-30 space-y-2">
-        {notifications.map((note, idx) => (
-          <div
-            key={idx}
-            className="bg-indigo-500 text-white px-4 py-2 rounded-md shadow-md animate-fadeIn"
-          >
-            {note}
-          </div>
-        ))}
-      </div>
-
-      {/* Typing Indicator */}
-      <div className="px-4 text-sm italic text-gray-500">
-        {typingUsers.length > 0 && `${typingUsers.join(", ")} is typing...`}
-      </div>
+      {/* User List */}
+      {showUserList && (
+        <div className="bg-white p-4 shadow-md">
+          <ul>
+            {activeUsers.map((user, idx) => (
+              <li key={idx} className="text-gray-800">
+                {user.userName}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Messages Section */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-br from-gray-200 via-white to-gray-200">
@@ -179,7 +172,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
               </div>
               <p>{msg.text}</p>
               <div className="text-right text-xs text-gray-400 mt-1">
-                {msg.timestamp}
+                {formatTimestamp(msg.timestamp)}
               </div>
               <div className="flex space-x-2 mt-2">
                 {["👍", "❤️", "😂"].map((reaction) => (
@@ -197,9 +190,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         ))}
       </div>
 
-      {/* Message Input Section */}
-      <div className="sticky bottom-0 bg-white border-t p-4 shadow-md">
-        {replyingTo && (
+      {replyingTo && (
           <div className="mb-2 text-sm bg-yellow-100 text-yellow-700 p-2 rounded-md shadow-sm animate-fadeIn">
             Replying to: <strong>{replyingTo.text}</strong>
             <button
@@ -210,6 +201,14 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
             </button>
           </div>
         )}
+
+      {/* Typing Indicator */}
+      <div className="sticky bottom-28 px-4 text-sm italic text-purple-500">
+        {typingUsers.length > 0 && `${typingUsers.join(", ")} ${typingUsers.length > 1 ? "are" : "is"} typing...`}
+      </div>
+
+      {/* Message Input */}
+      <div className="sticky bottom-0 bg-purple-700 p-4 shadow-md">
         <MessageInput onSend={sendMessage} onTyping={handleTyping} />
       </div>
     </div>

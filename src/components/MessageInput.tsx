@@ -1,12 +1,12 @@
-import { useState } from "react";
+import React, { useState } from "react";
 
-type Props = {
+export default function MessageInput({
+  onSend,
+  onTyping,
+}: {
   onSend: (message: string) => void;
-  onTyping?: () => void; // Optional callback for typing indicator
-  placeholder?: string;  // Customizable placeholder text
-};
-
-export default function MessageInput({ onSend, onTyping, placeholder = "Type your message" }: Props) {
+  onTyping?: () => void;
+}) {
   const [message, setMessage] = useState("");
 
   const handleSend = () => {
@@ -16,31 +16,25 @@ export default function MessageInput({ onSend, onTyping, placeholder = "Type you
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setMessage(e.target.value);
-    if (onTyping) onTyping();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleSend();
-    }
-  };
-
   return (
     <div className="flex items-center space-x-4">
       <input
         type="text"
-        placeholder={placeholder}
         value={message}
-        onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
-        className="flex-grow border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-300"
+        onChange={(e) => {
+          setMessage(e.target.value);
+          if (onTyping) onTyping();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSend();
+        }}
+        placeholder="Type a message..."
+        className="flex-grow border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
       />
       <button
         onClick={handleSend}
         disabled={!message.trim()}
-        className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 focus:ring-2 focus:ring-green-400 focus:outline-none disabled:bg-gray-400 disabled:cursor-not-allowed"
+        className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400"
       >
         Send
       </button>
