@@ -121,7 +121,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     const now = new Date();
     const diff = (now.getTime() - date.getTime()) / 1000;
 
-    if (diff < 60) return `${Math.floor(diff)} secs ago`;
+    if (diff < 60) return `${Math.floor(diff+ 3)} secs ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)} mins ago`;
     return date.toLocaleString("en-US", { hour: "numeric", minute: "numeric", hour12: true });
   };
