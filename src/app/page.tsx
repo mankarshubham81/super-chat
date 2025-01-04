@@ -15,31 +15,44 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-500 to-blue-800 p-6 text-white">
-      <h1 className="text-4xl font-extrabold mb-4 text-center">Welcome to Super Private Chat</h1>
-      <p className="text-lg mb-8 text-center max-w-xl">
-        Enter a room name to start chatting privately. Share the room URL with someone to join the same room. Chats are cleared after 10 minutes for maximum privacy.
-      </p>
-      <div className="flex flex-col space-y-4 items-center w-full max-w-md">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-purple-600 via-indigo-500 to-blue-500 p-6 text-white">
+      {/* Heading Section */}
+      <div className="text-center mb-8">
+        <h1 className="text-5xl font-extrabold mb-4 drop-shadow-lg">
+          Welcome to <span className="text-yellow-300">Super Private Chat</span>
+        </h1>
+        <p className="text-lg font-medium max-w-xl mx-auto leading-relaxed">
+        Enter a room name to start your private chat instantly—no sign-up or login required! Simply share the room URL with anyone you'd like to chat with, and they can join you directly.
+          <br />
+          <span className="font-bold text-yellow-200">
+          It's quick, hassle-free, and completely secure for seamless conversations. Create your room now and connect effortlessly!
+          </span>
+        </p>
+      </div>
+
+      {/* Room Input Section */}
+      <div className="flex flex-col space-y-6 items-center w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <input
           type="text"
           id="room-name-input"
           placeholder="Enter room name"
           value={roomName}
           onChange={handleRoomNameChange}
-          className="w-full border-2 border-blue-300 rounded-lg px-4 py-3 text-black focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-purple-500"
           aria-required="true"
           aria-describedby="room-name-error"
         />
         {roomName.trim() === "" && (
-          <div id="room-name-error" className="text-red-400 text-sm">
+          <div id="room-name-error" className="text-red-500 text-sm">
             Please enter a room name.
           </div>
         )}
         <Link
           href={`/${roomName}`}
-          className={`w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold text-center ${
-            !isRoomNameValid ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-700"
+          className={`w-full text-center py-3 rounded-lg font-semibold text-lg transition-transform ${
+            isRoomNameValid
+              ? "bg-purple-600 text-white hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500 transform hover:scale-105"
+              : "bg-gray-400 text-gray-200 cursor-not-allowed"
           }`}
         >
           Go to Room
