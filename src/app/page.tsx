@@ -27,10 +27,10 @@ export default function HomePage() {
           Welcome to <span className="text-yellow-300">Super Private Chat</span>
         </h1>
         <p className="text-lg font-medium max-w-xl mx-auto leading-relaxed">
-          Enter a room name to start your private chat instantly—no sign-up or login required! Simply share the room URL with anyone you&apos;d like to chat with, and they can join you directly.
+          Start a private chat instantly—no sign-up or login required! Begin chatting in seconds by entering a room name and name, then share the link for friends, family, or loved ones to join easily.
           <br />
           <span className="font-bold text-yellow-200">
-            It&apos;s quick, hassle-free, and completely secure for seamless conversations. Create your room now and connect effortlessly!
+            It&apos;s fast, secure, and effortless—create your room and start chatting now!
           </span>
         </p>
       </div>
