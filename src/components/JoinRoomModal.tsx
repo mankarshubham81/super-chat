@@ -15,9 +15,9 @@ export default function JoinRoomForm({ onJoin }: Props) {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gradient-to-br bg-purple-600">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-gray-700 text-center mb-6">
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="w-full max-w-md bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900 rounded-lg shadow-2xl p-8">
+        <h1 className="text-3xl font-bold text-white text-center mb-6">
           Join Chat Room
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -26,16 +26,16 @@ export default function JoinRoomForm({ onJoin }: Props) {
             placeholder="Enter your name"
             value={userName}
             onChange={(e) => setUserName(e.target.value)}
-            className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700"
+            className="w-full rounded-lg px-4 py-3 bg-gray-700 text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all"
           />
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-300 shadow-lg"
           >
             Join Room
           </button>
         </form>
-        <p className="text-sm text-gray-500 mt-4 text-center">
+        <p className="text-sm text-gray-400 mt-4 text-center">
           Ensure your name is unique within the room.
         </p>
       </div>

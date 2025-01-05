@@ -20,5 +20,6 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 } */
 body{
-  background: rgb(127, 86, 230);
+  background: linear-gradient(to top right, #7f2fca, #1f49a5, #7f2fca);
+
 }
