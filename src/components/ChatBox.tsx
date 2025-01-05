@@ -127,7 +127,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100 max-w-screen-xl mx-auto">
       {/* Chat Header */}
       <div className="sticky top-0 z-10 bg-purple-800 text-white p-4 shadow-md flex justify-between items-center">
         <div className="text-lg font-bold">{room}</div>

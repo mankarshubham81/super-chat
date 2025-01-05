@@ -15,7 +15,7 @@ export default function JoinRoomForm({ onJoin }: Props) {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="flex items-center justify-center h-screen bg-gradient-to-br bg-purple-600">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
         <h1 className="text-2xl font-bold text-gray-700 text-center mb-6">
           Join Chat Room

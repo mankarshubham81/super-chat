@@ -19,3 +19,6 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 } */
+body{
+  background: rgb(127, 86, 230);
+}
