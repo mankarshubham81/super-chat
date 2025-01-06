@@ -127,7 +127,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100 max-w-screen-xl mx-auto">
+    <div className="flex flex-col h-screen max-w-screen-xl mx-auto">
       {/* Chat Header */}
       <div className="sticky top-0 z-10 bg-purple-800 text-white p-4 shadow-md flex justify-between items-center">
         <div className="text-lg font-bold">{room}</div>
@@ -168,7 +168,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
 {/* Messages Section */}
 <div
-  className="flex-1 overflow-y-auto flex flex-col-reverse p-4 space-y-4 space-y-reverse bg-gradient-to-br from-gray-200 via-white to-gray-200"
+  className="flex-1 overflow-y-auto flex flex-col-reverse p-4 space-y-4 space-y-reverse rounded-b-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900"
 >
   {[...messages].reverse().map((msg) => (
     <motion.div
@@ -190,25 +190,25 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       onPointerDown={(e) => handleDoubleTap(e, msg)}
     >
       <div
-        className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xs ${
+        className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl ${
           msg.sender === userName
             ? "bg-purple-700 text-white"
-            : "bg-gray-100 text-gray-800"
+            : "bg-indigo-600 text-white"
         }`}
       >
         {msg.replyTo && (
-          <div className="mb-2 p-2 rounded bg-gray-50 border-l-4 border-green-500 text-gray-600 text-xs italic">
+          <div className="mb-2 p-2 rounded bg-green-100 border-l-4 border-green-500 text-gray-700 text-sm italic">
             Replying to:{" "}
             <span className="font-semibold">
               {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
             </span>
           </div>
         )}
-        <div className="text-xs font-semibold text-gray-400">
+        <div className="text-xs font-semibold text-gray-300">
           {msg.sender === userName ? "You" : msg.sender}
         </div>
         <p>{msg.text}</p>
-        <div className="text-right text-xs text-gray-400 mt-1">
+        <div className="text-right text-xs text-gray-300 mt-1">
           {formatTimestamp(msg.timestamp)}
         </div>
         <div className="flex space-x-2 mt-2">
@@ -231,7 +231,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   {/* Replying to Section */}
   {replyingTo && (
     <motion.div
-      className="mb-2 bg-gray-100 border-l-4 border-yellow-400 text-gray-700 p-3 rounded-md shadow-sm flex justify-between items-center"
+      className="mb-2 bg-yellow-100 border-l-4 border-yellow-500 text-gray-700 p-3 rounded-md shadow-sm flex justify-between items-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
@@ -251,7 +251,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
   {/* Typing Indicator */}
   <motion.div
-    className="sticky bottom-28 px-4 text-sm italic text-purple-700 bg-purple-50 rounded-md shadow-md w-max mx-auto py-1 px-2"
+    className="sticky bottom-28 px-4 text-sm italic text-purple-700 bg-purple-50 rounded-md shadow-md w-max mx-auto py-1"
     initial={{ opacity: 0 }}
     animate={{ opacity: typingUsers.length > 0 ? 1 : 0 }}
     transition={{ duration: 0.2 }}
@@ -263,7 +263,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   </motion.div>
 
   {/* Message Input */}
-  <div className="sticky bottom-0 bg-purple-800 p-4 shadow-md">
+  <div className="sticky bottom-0 rounded-t-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900 p-4 shadow-md">
     <MessageInput onSend={sendMessage} onTyping={handleTyping} />
   </div>
 </div>
