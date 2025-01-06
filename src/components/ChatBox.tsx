@@ -129,12 +129,12 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   return (
     <div className="flex flex-col h-screen max-w-screen-xl mx-auto">
       {/* Chat Header */}
-      <div className="sticky top-0 z-10 bg-purple-800 text-white p-4 shadow-md flex justify-between items-center">
+      <div className="sticky top-0 z-10 bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900 text-white p-4 shadow-md flex justify-between items-center">
         <div className="text-lg font-bold">{room}</div>
         <div className="flex items-center space-x-2">
           <span
             className={`text-sm ${
-              socketConnected ? "text-green-300" : "text-red-300"
+              socketConnected ? "text-green-400" : "text-red-400"
             }`}
           >
             {socketConnected ? "Connected" : "Disconnected"}
