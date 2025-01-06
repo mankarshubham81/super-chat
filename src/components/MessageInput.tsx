@@ -29,12 +29,12 @@ export default function MessageInput({
           if (e.key === "Enter") handleSend();
         }}
         placeholder="Type a message..."
-        className="flex-grow border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
+        className="flex-grow bg-gray-700 text-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
       />
       <button
         onClick={handleSend}
         disabled={!message.trim()}
-        className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400"
+        className="bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400"
       >
         Send
       </button>
