@@ -10,7 +10,7 @@ export default function MessageInput({
   const [message, setMessage] = useState("");
 
   const handleSend = () => {
-    if (message.trim()) {
+    if (message.trim().length > 0) {
       onSend(message.trim());
       setMessage("");
     }
