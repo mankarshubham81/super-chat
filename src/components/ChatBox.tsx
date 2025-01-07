@@ -190,15 +190,24 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         className="flex-1 overflow-y-auto flex flex-col-reverse p-4 space-y-4 space-y-reverse rounded-b-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900"
       >
         {[...messages].reverse().map((msg) => (
-          <motion.div
-            key={msg.id}
-            className={`flex ${msg.sender === userName ? "justify-end" : "justify-start"}`}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-            onDoubleClick={() => handleReply(msg)}
-            onPointerDown={(e) => handleDoubleTap(e, msg)}
-          >
+              <motion.div
+              key={msg.id}
+              className={`flex ${
+                msg.sender === userName ? "justify-end" : "justify-start"
+              }`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={(event, info) => {
+                if (info.offset.x > 100) {
+                  handleReply(msg);
+                }
+              }}
+              onDoubleClick={() => handleReply(msg)}
+              onPointerDown={(e) => handleDoubleTap(e, msg)}
+            >
             <div
               className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl ${
                 msg.sender === userName ? "bg-purple-700 text-white" : "bg-indigo-600 text-white"
