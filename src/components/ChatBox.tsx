@@ -132,7 +132,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     if (!socket) return;
   
     socket.emit("typing", { room });
-  }, 500);
+  }, 400);
 
   const formatTimestamp = (isoTimestamp: string) => {
     return formatDistanceToNow(new Date(isoTimestamp), { addSuffix: true });
