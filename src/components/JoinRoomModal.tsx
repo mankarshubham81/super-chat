@@ -26,12 +26,6 @@ export default function JoinRoomForm({ onJoin }: Props) {
     }
   };
 
-
-  // If userName exists, skip rendering the form
-  if (userName) {
-    return null;
-  }
-
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="w-full max-w-md bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900 rounded-lg shadow-2xl p-8">
