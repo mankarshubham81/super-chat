@@ -2,6 +2,9 @@ import React, { useEffect, useState, useRef } from "react";
 import io, { Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
 import { motion } from "framer-motion";
+import { debounce } from "lodash";
+import { formatDistanceToNow } from 'date-fns';
+
 
 type Message = {
   id: string;
@@ -123,22 +126,26 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     setReplyingTo(msg);
   };
 
-  const handleTyping = () => {
+  
+  const handleTyping = debounce(() => {
     const socket = socketRef.current;
     if (!socket) return;
-
+  
     socket.emit("typing", { room });
-  };
+  }, 500);
 
   const formatTimestamp = (isoTimestamp: string) => {
-    const date = new Date(isoTimestamp);
-    const now = new Date();
-    const diff = (now.getTime() - date.getTime()) / 1000;
-
-    if (diff < 60) return `${Math.floor(diff + 3)} secs ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)} mins ago`;
-    return date.toLocaleString("en-US", { hour: "numeric", minute: "numeric", hour12: true });
+    return formatDistanceToNow(new Date(isoTimestamp), { addSuffix: true });
   };
+  // const formatTimestamp = (isoTimestamp: string) => {
+  //   const date = new Date(isoTimestamp);
+  //   const now = new Date();
+  //   const diff = (now.getTime() - date.getTime()) / 1000;
+
+  //   if (diff < 60) return `${Math.floor(diff + 3)} secs ago`;
+  //   if (diff < 3600) return `${Math.floor(diff / 60)} mins ago`;
+  //   return date.toLocaleString("en-US", { hour: "numeric", minute: "numeric", hour12: true });
+  // };
 
   return (
     <div className="flex flex-col h-screen max-w-screen-xl mx-auto">
