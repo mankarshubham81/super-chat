@@ -1,18 +1,44 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type Props = {
   onJoin: (name: string) => void;
 };
 
 export default function JoinRoomForm({ onJoin }: Props) {
-  const [userName, setUserName] = useState("");
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Access localStorage only in the browser
+    if (typeof window !== "undefined") {
+      const storedName = localStorage.getItem("userName");
+      if (storedName) {
+        setUserName(storedName);
+        onJoin(storedName);
+      }
+    }
+  }, [onJoin]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (userName.trim()) {
+    if (userName && userName.trim()) {
+      localStorage.setItem("userName", userName);
       onJoin(userName);
     }
   };
+
+  // Show a loading state while checking localStorage during the first render
+  if (userName === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  // If userName exists, skip rendering the form
+  if (userName) {
+    return null;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen">
@@ -24,7 +50,7 @@ export default function JoinRoomForm({ onJoin }: Props) {
           <input
             type="text"
             placeholder="Enter your name"
-            value={userName}
+            value={userName || ""}
             onChange={(e) => setUserName(e.target.value)}
             className="w-full rounded-lg px-4 py-3 bg-gray-700 text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all"
           />
