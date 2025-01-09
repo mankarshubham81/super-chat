@@ -31,43 +31,52 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
   useEffect(() => {
     const socket = io("https://super-chat-backend.onrender.com", {
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
+      reconnection: true, // Enable automatic reconnections
+      reconnectionAttempts: 5, // Retry connection up to 5 times
+      reconnectionDelay: 500, // Start reconnection attempts after 500ms
+      reconnectionDelayMax: 2000, // Maximum delay between reconnections
     });
-    socketRef.current = socket;
-
-    // localStorage.setItem("room", room);
-    // localStorage.setItem("userName", userName);
   
-    socket.on("connect", () => {
+    socketRef.current = socket;
+  
+    const handleConnect = () => {
       setSocketConnected(true);
       socket.emit("join-room", { room, userName });
-    });
+    };
   
-    socket.on("disconnect", () => setSocketConnected(false));
+    const handleDisconnect = () => {
+      setSocketConnected(false);
+    };
   
-    socket.on("user-list", (users: User[]) => setActiveUsers(users));
+    const handleUserList = (users: User[]) => setActiveUsers(users);
   
-    socket.on("typing", (typingUsersList: unknown) => {
+    const handleTypingUsers = (typingUsersList: unknown) => {
       if (Array.isArray(typingUsersList)) {
         setTypingUsers(
           typingUsersList.filter((typingUser) => typingUser !== userName)
         );
       } else {
         console.warn("Invalid typingUsersList received:", typingUsersList);
-        setTypingUsers([]); // Reset to avoid unexpected errors
+        setTypingUsers([]);
       }
-    });
+    };
   
-    // Handle `recent-messages`
-    socket.on("recent-messages", (recentMessages: Message[]) => {
+    const handleRecentMessages = (recentMessages: Message[]) => {
       setMessages(recentMessages);
-    });
+    };
   
-    socket.on("receive-message", (message: Message) => {
+    const handleReceiveMessage = (message: Message) => {
       setMessages((prev) => [...prev, { ...message, reactions: {} }]);
-    });
+    };
   
-    socket.on("message-reaction", ({ messageId, reaction }: { messageId: string; reaction: string }) => {
+    const handleMessageReaction = ({
+      messageId,
+      reaction,
+    }: {
+      messageId: string;
+      reaction: string;
+    }) => {
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === messageId
@@ -81,12 +90,26 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
             : msg
         )
       );
-    });
+    };
+  
+    // Socket event listeners
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("user-list", handleUserList);
+    socket.on("typing", handleTypingUsers);
+    socket.on("recent-messages", handleRecentMessages);
+    socket.on("receive-message", handleReceiveMessage);
+    socket.on("message-reaction", handleMessageReaction);
   
     return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("user-list", handleUserList);
+      socket.off("typing", handleTypingUsers);
+      socket.off("recent-messages", handleRecentMessages);
+      socket.off("receive-message", handleReceiveMessage);
+      socket.off("message-reaction", handleMessageReaction);
       socket.disconnect();
-      // localStorage.removeItem("userName");
-      // localStorage.removeItem("room");
     };
   }, [room, userName]);
 
