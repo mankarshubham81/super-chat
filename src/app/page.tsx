@@ -26,7 +26,7 @@ export default function HomePage() {
         <meta name="author" content="Shubham Mankar" />
         <meta property="og:title" content="Super Private Chat - Secure and Instant Messaging" />
         <meta property="og:description" content="Join private chat rooms instantly. No sign-up or login required. Start chatting securely in just a few seconds." />
-        <meta property="og:image" content="./chat-super-logo.webp"/>
+        <meta property="og:image" content="./icon.png"/>
         <meta property="og:url" content="https://chat-super.vercel.app/" />
       </head>
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-white">

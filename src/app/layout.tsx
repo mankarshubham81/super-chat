@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "./chat-super-logo.webp",
+        url: "./icon.png",
         width: 1200,
         height: 630,
         alt: "Super Private Chat",
