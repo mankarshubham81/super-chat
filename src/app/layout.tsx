@@ -17,9 +17,6 @@ export const metadata: Metadata = {
   description: "Join private chat rooms instantly. No sign-up or login required. Start chatting securely in just a few seconds.",
   keywords: "private chat, secure messaging, instant chat, no sign-up chat, online communication",
   viewport: "width=device-width, initial-scale=1",
-  icons: {
-    icon: "./chat-super-logo.webp",
-  },
   openGraph: {
     title: "Super Private Chat - Secure and Instant Messaging",
     description: "Join private chat rooms instantly. No sign-up or login required. Start chatting securely in just a few seconds.",
@@ -27,13 +24,14 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "./icon.png",
+        url: "https://chat-super.vercel.app/icon.png",
         width: 1200,
         height: 630,
         alt: "Super Private Chat",
       },
     ],
   },
+  icons: "https://chat-super.vercel.app/icon.png"
 };
 
 export default function RootLayout({
