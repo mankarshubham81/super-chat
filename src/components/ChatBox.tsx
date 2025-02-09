@@ -30,8 +30,8 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const socketRef = useRef<typeof Socket | null>(null);
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || '', {
-      transports: ["websocket"],
+    const socket = io("https://super-chat-backend.onrender.com", {
+      transports: ["websocket", "polling"],
       reconnection: true, // Enable automatic reconnections
       reconnectionAttempts: 5, // Retry connection up to 5 times
       reconnectionDelay: 500, // Start reconnection attempts after 500ms
@@ -135,6 +135,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   
     const message = { text, replyTo: replyingTo?.id || null, imageUrl };
     socket.emit("send-message", { room, message });
+    console.log("mmssgg:", )
   
     setReplyingTo(null);
   };
