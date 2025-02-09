@@ -31,7 +31,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
   useEffect(() => {
     const socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || '', {
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
       reconnection: true, // Enable automatic reconnections
       reconnectionAttempts: 5, // Retry connection up to 5 times
       reconnectionDelay: 500, // Start reconnection attempts after 500ms
