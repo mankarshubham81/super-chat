@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import io, { Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
 import { motion } from "framer-motion";
-import { debounce } from "lodash";
 import { formatDistanceToNow } from 'date-fns';
 
 
@@ -13,6 +12,7 @@ type Message = {
   timestamp: string;
   reactions?: Record<string, number>;
   replyTo?: string | null;
+  imageUrl?: string; // Add this line
 };
 
 type User = {
@@ -30,8 +30,8 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const socketRef = useRef<typeof Socket | null>(null);
 
   useEffect(() => {
-    const socket = io("https://super-chat-backend.onrender.com", {
-      transports: ["websocket"],
+    const socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || '', {
+      transports: ["websocket", "polling"],
       reconnection: true, // Enable automatic reconnections
       reconnectionAttempts: 5, // Retry connection up to 5 times
       reconnectionDelay: 500, // Start reconnection attempts after 500ms
@@ -129,20 +129,14 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
   const toggleUserList = () => setShowUserList((prev) => !prev);
 
-  const sendMessage = (text: string) => {
+  const sendMessage = (text: string, imageUrl?: string) => {
     const socket = socketRef.current;
     if (!socket) return;
-
-    const message = { text, replyTo: replyingTo?.id || null };
+  
+    const message = { text, replyTo: replyingTo?.id || null, imageUrl };
     socket.emit("send-message", { room, message });
-
+  
     setReplyingTo(null);
-  };
-
-  const reactToMessage = (messageId: string, reaction: string) => {
-    const socket = socketRef.current;
-    if (!socket) return;
-    socket.emit("react-message", { room, messageId, reaction });
   };
 
   const handleReply = (msg: Message) => {
@@ -150,25 +144,16 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   };
 
   
-  const handleTyping = debounce(() => {
+  const handleTyping = () => {
     const socket = socketRef.current;
     if (!socket) return;
   
     socket.emit("typing", { room });
-  }, 400);
+  };
 
   const formatTimestamp = (isoTimestamp: string) => {
     return formatDistanceToNow(new Date(isoTimestamp), { addSuffix: true });
   };
-  // const formatTimestamp = (isoTimestamp: string) => {
-  //   const date = new Date(isoTimestamp);
-  //   const now = new Date();
-  //   const diff = (now.getTime() - date.getTime()) / 1000;
-
-  //   if (diff < 60) return `${Math.floor(diff + 3)} secs ago`;
-  //   if (diff < 3600) return `${Math.floor(diff / 60)} mins ago`;
-  //   return date.toLocaleString("en-US", { hour: "numeric", minute: "numeric", hour12: true });
-  // };
 
   return (
     <div className="flex flex-col h-screen max-w-screen-xl mx-auto">
@@ -235,7 +220,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
               className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl ${
                 msg.sender === userName ? "bg-purple-700 text-white" : "bg-indigo-600 text-white"
               }`}
-            >
+              >
               {msg.replyTo && (
                 <div className="mb-2 p-2 rounded bg-green-100 border-l-4 border-green-500 text-gray-700 text-sm italic">
                   Replying to:{" "}
@@ -247,20 +232,16 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
               <div className="text-xs font-semibold text-gray-300">
                 {msg.sender === userName ? "You" : msg.sender}
               </div>
+              {msg.imageUrl && (
+                <img 
+                  src={msg.imageUrl} 
+                  alt="Uploaded content" 
+                  className="mt-2 rounded-lg max-w-full h-auto max-h-48 object-cover border-2 border-purple-100"
+                />
+              )}
               <p>{msg.text}</p>
               <div className="text-right text-xs text-gray-300 mt-1">
                 {formatTimestamp(msg.timestamp)}
-              </div>
-              <div className="flex space-x-2 mt-2">
-                {["👍", "❤️", "😂"].map((reaction) => (
-                  <button
-                    key={reaction}
-                    className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 rounded px-1 py-0.5 transition-all duration-200"
-                    onClick={() => reactToMessage(msg.id, reaction)}
-                  >
-                    {reaction} {msg.reactions?.[reaction] || 0}
-                  </button>
-                ))}
               </div>
             </div>
           </motion.div>
