@@ -20,7 +20,7 @@ export default function HomePage() {
 
   return (
     <>
-      <head>
+      {/* <head>
         <meta name="description" content="Join private chat rooms instantly. No sign-up or login required. Start chatting securely in just a few seconds." />
         <meta name="keywords" content="private chat, secure messaging, instant chat, no sign-up chat, online communication" />
         <meta name="author" content="Shubham Mankar" />
@@ -28,7 +28,7 @@ export default function HomePage() {
         <meta property="og:description" content="Join private chat rooms instantly. No sign-up or login required. Start chatting securely in just a few seconds." />
         <meta property="og:image" content="./icon.png"/>
         <meta property="og:url" content="https://chat-super.vercel.app/" />
-      </head>
+      </head> */}
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-white">
         {/* Heading Section */}
         <div className="text-center mb-8">

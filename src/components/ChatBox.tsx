@@ -2,8 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import io, { Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
 import { motion } from "framer-motion";
-import { formatDistanceToNow } from 'date-fns';
-
+import { formatDistanceToNow } from "date-fns";
 
 type Message = {
   id: string;
@@ -12,7 +11,7 @@ type Message = {
   timestamp: string;
   reactions?: Record<string, number>;
   replyTo?: string | null;
-  imageUrl?: string; // Add this line
+  imageUrl?: string;
 };
 
 type User = {
@@ -32,25 +31,25 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   useEffect(() => {
     const socket = io("https://super-chat-backend.onrender.com", {
       transports: ["websocket", "polling"],
-      reconnection: true, // Enable automatic reconnections
-      reconnectionAttempts: 5, // Retry connection up to 5 times
-      reconnectionDelay: 500, // Start reconnection attempts after 500ms
-      reconnectionDelayMax: 2000, // Maximum delay between reconnections
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 2000,
     });
-  
+
     socketRef.current = socket;
-  
+
     const handleConnect = () => {
       setSocketConnected(true);
       socket.emit("join-room", { room, userName });
     };
-  
+
     const handleDisconnect = () => {
       setSocketConnected(false);
     };
-  
+
     const handleUserList = (users: User[]) => setActiveUsers(users);
-  
+
     const handleTypingUsers = (typingUsersList: unknown) => {
       if (Array.isArray(typingUsersList)) {
         setTypingUsers(
@@ -61,15 +60,15 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         setTypingUsers([]);
       }
     };
-  
+
     const handleRecentMessages = (recentMessages: Message[]) => {
       setMessages(recentMessages);
     };
-  
+
     const handleReceiveMessage = (message: Message) => {
       setMessages((prev) => [...prev, { ...message, reactions: {} }]);
     };
-  
+
     const handleMessageReaction = ({
       messageId,
       reaction,
@@ -91,8 +90,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         )
       );
     };
-  
-    // Socket event listeners
+
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("user-list", handleUserList);
@@ -100,7 +98,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     socket.on("recent-messages", handleRecentMessages);
     socket.on("receive-message", handleReceiveMessage);
     socket.on("message-reaction", handleMessageReaction);
-  
+
     return () => {
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
@@ -132,11 +130,10 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const sendMessage = (text: string, imageUrl?: string) => {
     const socket = socketRef.current;
     if (!socket) return;
-  
+
     const message = { text, replyTo: replyingTo?.id || null, imageUrl };
     socket.emit("send-message", { room, message });
-    console.log("mmssgg:", )
-  
+
     setReplyingTo(null);
   };
 
@@ -144,11 +141,10 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     setReplyingTo(msg);
   };
 
-  
   const handleTyping = () => {
     const socket = socketRef.current;
     if (!socket) return;
-  
+
     socket.emit("typing", { room });
   };
 
@@ -199,29 +195,29 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         className="flex-1 overflow-y-auto flex flex-col-reverse p-4 space-y-4 space-y-reverse rounded-b-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900"
       >
         {[...messages].reverse().map((msg) => (
-              <motion.div
-              key={msg.id}
-              className={`flex ${
-                msg.sender === userName ? "justify-end" : "justify-start"
-              }`}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              onDragEnd={(event, info) => {
-                if (info.offset.x > 100) {
-                  handleReply(msg);
-                }
-              }}
-              onDoubleClick={() => handleReply(msg)}
-              onPointerDown={(e) => handleDoubleTap(e, msg)}
-            >
+          <motion.div
+            key={msg.id}
+            className={`flex ${
+              msg.sender === userName ? "justify-end" : "justify-start"
+            }`}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragEnd={(event, info) => {
+              if (info.offset.x > 100) {
+                handleReply(msg);
+              }
+            }}
+            onDoubleClick={() => handleReply(msg)}
+            onPointerDown={(e) => handleDoubleTap(e, msg)}
+          >
             <div
-              className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl ${
+              className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl select-none ${
                 msg.sender === userName ? "bg-purple-700 text-white" : "bg-indigo-600 text-white"
               }`}
-              >
+            >
               {msg.replyTo && (
                 <div className="mb-2 p-2 rounded bg-green-100 border-l-4 border-green-500 text-gray-700 text-sm italic">
                   Replying to:{" "}
@@ -234,9 +230,9 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
                 {msg.sender === userName ? "You" : msg.sender}
               </div>
               {msg.imageUrl && (
-                <img 
-                  src={msg.imageUrl} 
-                  alt="Uploaded content" 
+                <img
+                  src={msg.imageUrl}
+                  alt="Uploaded content"
                   className="mt-2 rounded-lg max-w-full h-auto max-h-48 object-cover border-2 border-purple-100"
                 />
               )}
