@@ -151,10 +151,6 @@ export default function MessageInput({
             setMessage(e.target.value);
             if (onTyping) onTyping();
           }}
-          onPaste={(e) => {
-            e.preventDefault();
-            alert("Pasting is not allowed");
-          }}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Type a message..."
           className="flex-grow bg-gray-100 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
