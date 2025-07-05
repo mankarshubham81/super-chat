@@ -13,6 +13,8 @@ export default function MessageInput({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
+  // const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const startImageUpload = (file: File) => {
     if (file.size > 20 * 1024 * 1024) {
@@ -53,6 +55,9 @@ export default function MessageInput({
       }
       setUploading(false);
       xhrRef.current = null;
+      
+      // Focus input after upload completes
+      inputRef.current?.focus();
     };
 
     xhr.onerror = () => {
@@ -62,6 +67,9 @@ export default function MessageInput({
       setPreviewUrl(null);
       setUploading(false);
       xhrRef.current = null;
+      
+      // Focus input after upload fails
+      inputRef.current?.focus();
     };
 
     xhr.open("POST", `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`);
@@ -77,6 +85,16 @@ export default function MessageInput({
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
       }
+    }
+    
+    // Focus input after sending
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
@@ -121,12 +139,13 @@ export default function MessageInput({
             type="file"
             accept="image/*"
             className="hidden"
-            disabled={uploading} // Disable file input during upload
+            disabled={uploading}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) {
                 startImageUpload(file);
               }
+              e.target.value = ""; // Reset to allow selecting same file again
             }}
           />
           <svg
@@ -144,22 +163,23 @@ export default function MessageInput({
           </svg>
         </label>
 
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
           value={message}
           onChange={(e) => {
             setMessage(e.target.value);
             if (onTyping) onTyping();
           }}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          onKeyDown={handleKeyDown}
           placeholder="Type a message..."
-          className="flex-grow bg-gray-100 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          className="flex-grow bg-gray-100 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[44px] max-h-32"
+          rows={1}
         />
 
         <button
           onClick={handleSend}
           disabled={uploading || (!message.trim() && !imageUrl)}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[80px]"
         >
           {uploading ? "Uploading..." : "Send"}
         </button>
