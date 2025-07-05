@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import io, { Socket } from "socket.io-client";
-import MessageInput from "./MessageInput";
+import MessageInput, { MessageInputHandle } from "./MessageInput";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
+import { useSwipeable } from "react-swipeable";
 
 type Message = {
   id: string;
@@ -27,9 +29,26 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const socketRef = useRef<typeof Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement>>({});
+  const messageInputRef = useRef<MessageInputHandle>(null);
+
+  // Detect mobile devices
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        )
+      );
+    };
+
+    checkIsMobile();
+    window.addEventListener("resize", checkIsMobile);
+    return () => window.removeEventListener("resize", checkIsMobile);
+  }, []);
 
   useEffect(() => {
     const socket = io("https://super-chat-backend.onrender.com", {
@@ -118,14 +137,20 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
+  // useEffect(() => {
+  //   if (messages.length > 0) {
+  //     const lastMessage = messages[messages.length - 1];
+  //     if (lastMessage.sender === userName) {
+  //       scrollToBottom();
+  //     }
+  //   }
+  // }, [messages, userName, scrollToBottom]);
   useEffect(() => {
     if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.sender === userName) {
-        scrollToBottom();
-      }
+      scrollToBottom();
     }
-  }, [messages, userName, scrollToBottom]);
+  }, [messages, scrollToBottom]);
+  
 
   useEffect(() => {
     scrollToBottom("auto");
@@ -140,8 +165,30 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     }
   }, [highlightedMessageId]);
 
+  const scrollToMessage = useCallback((messageId: string) => {
+    const element = messageRefs.current[messageId];
+    if (element) {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+      setHighlightedMessageId(messageId);
+    }
+  }, []);
+
+  const handleReply = (msg: Message) => {
+    setReplyingTo(msg);
+    // Focus the input after a short delay
+    setTimeout(() => {
+      messageInputRef.current?.focus();
+      scrollToMessage(msg.id);
+    }, 100);
+  };
+
   const handleDoubleTap = (msg: Message) => {
-    handleReply(msg);
+    if (!isMobile) {
+      handleReply(msg);
+    }
   };
 
   const toggleUserList = () => setShowUserList((prev) => !prev);
@@ -154,18 +201,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     socket.emit("send-message", { room, message });
 
     setReplyingTo(null);
-  };
-
-  const handleReply = (msg: Message) => {
-    setReplyingTo(msg);
-    
-    setTimeout(() => {
-      messageRefs.current[msg.id]?.scrollIntoView({
-        behavior: "smooth",
-        block: "center"
-      });
-      setHighlightedMessageId(msg.id);
-    }, 100);
   };
 
   const handleTyping = () => {
@@ -199,13 +234,8 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           );
         }
       } catch (e) {
-        if (e instanceof TypeError) {
-          console.error("Invalid URL:", e.message);
-          throw new Error("The provided string is not a valid URL.");
-        } else {
-          console.error("Unexpected error:", e);
-          throw new Error("An unexpected error occurred while parsing the URL.");
-        }
+        console.error("Error parsing URL:", part, e);
+        return part;
       }
       return part;
     });
@@ -214,6 +244,114 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const setMessageRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
     if (el) messageRefs.current[id] = el;
   }, []);
+
+  // MessageItem component with swipe functionality
+  const MessageItem = React.memo(({
+    msg,
+    isOriginalMessage,
+    isHighlighted,
+    setMessageRef,
+    handleReply,
+    handleDoubleTap,
+    isMobile,
+    userName,
+    scrollToMessage,
+    repliedMessage
+  }: {
+    msg: Message;
+    isOriginalMessage: boolean;
+    isHighlighted: boolean;
+    setMessageRef: (id: string) => (el: HTMLDivElement | null) => void;
+    handleReply: (msg: Message) => void;
+    handleDoubleTap: (msg: Message) => void;
+    isMobile: boolean;
+    userName: string;
+    scrollToMessage: (messageId: string) => void;
+    repliedMessage: Message | null;
+  }) => {
+    // Swipe handlers for mobile
+    const swipeHandlers = useSwipeable({
+      onSwipedRight: () => handleReply(msg),
+      delta: 50,
+      preventScrollOnSwipe: true,
+      trackTouch: true,
+      trackMouse: false,
+      rotationAngle: 0,
+      swipeDuration: 500,
+    });
+
+    const { ref: swipeRef, ...swipeProps } = swipeHandlers;
+
+    // Create a combined ref that handles both our message ref and the swipe ref
+    // combinedRef already calls swipeRef(el) under the hood
+const combinedRef = useCallback(
+  (el: HTMLDivElement | null) => {
+    setMessageRef(msg.id)(el);
+    if (el) swipeRef(el);
+  },
+  [setMessageRef, msg.id, swipeRef]
+);
+
+    return (
+      <motion.div
+        key={msg.id}
+        ref={combinedRef}
+        {...(isMobile ? swipeProps : {})}
+        className={`flex my-1 md:my-2 transition-all duration-300`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        onDoubleClick={() => handleDoubleTap(msg)}
+        // Only apply swipe handlers on mobile
+        // {...(isMobile ? swipeHandlers : {})}
+      >
+        <div
+          className={`p-3 md:p-4 rounded-xl shadow-md text-sm font-medium ${isHighlighted ? "ring-4 ring-amber-400/80 bg-amber-100/10 shadow-xl animate-pulse rounded-2xl" : ""} max-w-[85%] md:max-w-xl w-full ${
+            msg.sender === userName 
+              ? "bg-purple-700 text-white ml-auto" 
+              : "bg-indigo-600 text-white"
+          } ${isOriginalMessage ? "ring-2 ring-yellow-400" : ""}`}
+        >
+          {msg.replyTo && (
+            <div 
+              className="mb-2 p-2 rounded bg-indigo-800 border-l-4 border-blue-400 text-gray-200 text-xs italic cursor-pointer truncate"
+              onClick={() => {
+                if (msg.replyTo) {
+                  scrollToMessage(msg.replyTo);
+                }
+              }}
+            >
+              Replying to:{" "}
+              <span className="font-semibold">
+                {repliedMessage?.text || (repliedMessage?.imageUrl ? "[Image]" : "Message")}
+              </span>
+            </div>
+          )}
+          <div className="text-xs font-semibold text-gray-300 truncate" title={msg.sender === userName ? "You" : msg.sender}>
+            {msg.sender === userName ? "You" : msg.sender}
+          </div>
+          {msg.imageUrl && (
+            <div className="mt-2 rounded-lg overflow-hidden">
+              <img
+                src={msg.imageUrl}
+                alt="Uploaded content"
+                className="max-w-full h-auto max-h-48 object-contain bg-black"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.parentElement!.innerHTML = '<div class="bg-gray-800 p-4 text-center text-gray-400">Image failed to load</div>';
+                }}
+              />
+            </div>
+          )}
+          <p className="break-words mt-1">{renderMessageText(msg.text)}</p>
+          <div className="text-right text-xs text-gray-300 mt-1">
+            {formatTimestamp(msg.timestamp)}
+          </div>
+        </div>
+      </motion.div>
+    );
+  });
 
   return (
     <div className="flex flex-col h-screen max-w-screen-xl mx-auto bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900">
@@ -275,67 +413,22 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         {messages.map((msg) => {
           const isOriginalMessage = replyingTo?.id === msg.id;
           const isHighlighted = highlightedMessageId === msg.id;
+          const repliedMessage = msg.replyTo ? messages.find(m => m.id === msg.replyTo) || null : null;
           
           return (
-            <motion.div
+            <MessageItem
               key={msg.id}
-              ref={setMessageRef(msg.id)}
-              className={`flex my-1 md:my-2 transition-all duration-300 ${isHighlighted ? "ring-4 ring-yellow-400 rounded-xl" : ""}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              onDoubleClick={() => handleDoubleTap(msg)}
-            >
-              <div
-                className={`p-3 md:p-4 rounded-xl shadow-md text-sm font-medium max-w-[85%] md:max-w-xl w-full ${
-                  msg.sender === userName 
-                    ? "bg-purple-700 text-white ml-auto" 
-                    : "bg-indigo-600 text-white"
-                } ${isOriginalMessage ? "ring-2 ring-yellow-400" : ""}`}
-              >
-                {msg.replyTo && (
-                  <div 
-                    className="mb-2 p-2 rounded bg-indigo-800 border-l-4 border-blue-400 text-gray-200 text-xs italic cursor-pointer truncate"
-                    onClick={() => {
-                      const originalMsg = messages.find(m => m.id === msg.replyTo);
-                      if (originalMsg) {
-                        messageRefs.current[originalMsg.id]?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center"
-                        });
-                        setHighlightedMessageId(originalMsg.id);
-                      }
-                    }}
-                  >
-                    Replying to:{" "}
-                    <span className="font-semibold">
-                      {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
-                    </span>
-                  </div>
-                )}
-                <div className="text-xs font-semibold text-gray-300 truncate" title={msg.sender === userName ? "You" : msg.sender}>
-                  {msg.sender === userName ? "You" : msg.sender}
-                </div>
-                {msg.imageUrl && (
-                  <div className="mt-2 rounded-lg overflow-hidden">
-                    <img
-                      src={msg.imageUrl}
-                      alt="Uploaded content"
-                      className="max-w-full h-auto max-h-48 object-contain bg-black"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        target.parentElement!.innerHTML = '<div class="bg-gray-800 p-4 text-center text-gray-400">Image failed to load</div>';
-                      }}
-                    />
-                  </div>
-                )}
-                <p className="break-words mt-1">{renderMessageText(msg.text)}</p>
-                <div className="text-right text-xs text-gray-300 mt-1">
-                  {formatTimestamp(msg.timestamp)}
-                </div>
-              </div>
-            </motion.div>
+              msg={msg}
+              isOriginalMessage={isOriginalMessage}
+              isHighlighted={isHighlighted}
+              setMessageRef={setMessageRef}
+              handleReply={handleReply}
+              handleDoubleTap={handleDoubleTap}
+              isMobile={isMobile}
+              userName={userName}
+              scrollToMessage={scrollToMessage}
+              repliedMessage={repliedMessage}
+            />
           )
         })}
         <div ref={messagesEndRef} className="h-4" />
@@ -359,13 +452,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           <div className="flex space-x-2 ml-2">
             <button
               className="text-blue-500 hover:text-blue-700"
-              onClick={() => {
-                messageRefs.current[replyingTo.id]?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center"
-                });
-                setHighlightedMessageId(replyingTo.id);
-              }}
+              onClick={() => scrollToMessage(replyingTo.id)}
               aria-label="View original message"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -405,7 +492,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
       {/* Message Input */}
       <div className="sticky bottom-0 bg-gradient-to-tr from-purple-900 via-indigo-800 to-purple-900 p-3 md:p-4 shadow-lg">
-        <MessageInput onSend={sendMessage} onTyping={handleTyping} />
+      <MessageInput ref={messageInputRef} onSend={sendMessage} onTyping={handleTyping} />
       </div>
     </div>
   );
