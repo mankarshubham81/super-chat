@@ -1,12 +1,30 @@
-import React, { useState, useRef, useEffect } from "react";
+// MessageInput.tsx
+import React, { 
+  useState, 
+  useRef, 
+  useEffect, 
+  forwardRef, 
+  useImperativeHandle 
+} from "react";
 
-export default function MessageInput({
-  onSend,
-  onTyping,
-}: {
+// Export the handle type
+export interface MessageInputHandle {
+  focus: () => void;
+}
+
+interface MessageInputProps {
   onSend: (message: string, imageUrl?: string) => void;
   onTyping?: () => void;
-}) {
+}
+
+// interface MessageInputHandle {
+//   focus: () => void;
+// }
+
+const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(({
+  onSend,
+  onTyping,
+}, ref) => {
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -14,6 +32,12 @@ export default function MessageInput({
   const [uploadProgress, setUploadProgress] = useState(0);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+    }
+  }), []);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -157,6 +181,7 @@ export default function MessageInput({
               } else {
                 setImageUrl(null);
               }
+              inputRef.current?.focus();
             }}
             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-colors shadow-md"
             aria-label={uploading ? "Cancel upload" : "Remove image"}
@@ -182,6 +207,7 @@ export default function MessageInput({
                 startImageUpload(file);
               }
               e.target.value = "";
+              inputRef.current?.focus();
             }}
           />
           <svg
@@ -210,6 +236,9 @@ export default function MessageInput({
           placeholder="Type a message..."
           className="flex-grow bg-gray-100 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none overflow-hidden min-h-[44px] max-h-32 text-gray-800"
           rows={1}
+          onPaste={() => {
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
         />
 
         <button
@@ -234,4 +263,6 @@ export default function MessageInput({
       </div>
     </div>
   );
-}
+});
+
+export default MessageInput;
