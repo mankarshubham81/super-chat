@@ -199,7 +199,13 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           );
         }
       } catch (e) {
-        // Not a valid URL
+        if (e instanceof TypeError) {
+          console.error("Invalid URL:", e.message);
+          throw new Error("The provided string is not a valid URL.");
+        } else {
+          console.error("Unexpected error:", e);
+          throw new Error("An unexpected error occurred while parsing the URL.");
+        }
       }
       return part;
     });
