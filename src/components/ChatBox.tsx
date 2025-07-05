@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import io, { Socket } from "socket.io-client";
 import MessageInput from "./MessageInput";
 import { motion } from "framer-motion";
@@ -198,6 +198,10 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     });
   };
 
+  const setMessageRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
+    if (el) messageRefs.current[id] = el;
+  }, []);
+
   return (
     <div className="flex flex-col h-screen max-w-screen-xl mx-auto">
       {/* Chat Header */}
@@ -249,7 +253,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           return (
             <motion.div
               key={msg.id}
-              ref={(el: any) => el && (messageRefs.current[msg.id] = el)}
+              ref={setMessageRef(msg.id)}
               className={`flex my-2 transition-all duration-300 ${isHighlighted ? "ring-4 ring-yellow-400 rounded-xl" : ""}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
