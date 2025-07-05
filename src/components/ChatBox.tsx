@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import io, { Socket } from "socket.io-client";
 import MessageInput, { MessageInputHandle } from "./MessageInput";
-
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
 import { useSwipeable } from "react-swipeable";
@@ -137,14 +137,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
-  // useEffect(() => {
-  //   if (messages.length > 0) {
-  //     const lastMessage = messages[messages.length - 1];
-  //     if (lastMessage.sender === userName) {
-  //       scrollToBottom();
-  //     }
-  //   }
-  // }, [messages, userName, scrollToBottom]);
   useEffect(() => {
     if (messages.length > 0) {
       scrollToBottom();
@@ -279,19 +271,17 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       rotationAngle: 0,
       swipeDuration: 500,
     });
-    MessageItem.displayName = "MessageItem";
 
     const { ref: swipeRef, ...swipeProps } = swipeHandlers;
 
     // Create a combined ref that handles both our message ref and the swipe ref
-    // combinedRef already calls swipeRef(el) under the hood
-const combinedRef = useCallback(
-  (el: HTMLDivElement | null) => {
-    setMessageRef(msg.id)(el);
-    if (el) swipeRef(el);
-  },
-  [setMessageRef, msg.id, swipeRef]
-);
+    const combinedRef = useCallback(
+      (el: HTMLDivElement | null) => {
+        setMessageRef(msg.id)(el);
+        if (el) swipeRef(el);
+      },
+      [setMessageRef, msg.id, swipeRef]
+    );
 
     return (
       <motion.div
@@ -303,8 +293,6 @@ const combinedRef = useCallback(
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
         onDoubleClick={() => handleDoubleTap(msg)}
-        // Only apply swipe handlers on mobile
-        // {...(isMobile ? swipeHandlers : {})}
       >
         <div
           className={`p-3 md:p-4 rounded-xl shadow-md text-sm font-medium ${isHighlighted ? "ring-4 ring-amber-400/80 bg-amber-100/10 shadow-xl animate-pulse rounded-2xl" : ""} max-w-[85%] md:max-w-xl w-full ${
@@ -332,11 +320,12 @@ const combinedRef = useCallback(
             {msg.sender === userName ? "You" : msg.sender}
           </div>
           {msg.imageUrl && (
-            <div className="mt-2 rounded-lg overflow-hidden">
-              <img
+            <div className="mt-2 rounded-lg overflow-hidden relative w-full h-48">
+              <Image
                 src={msg.imageUrl}
                 alt="Uploaded content"
-                className="max-w-full h-auto max-h-48 object-contain bg-black"
+                fill
+                className="object-contain"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.onerror = null;
@@ -353,6 +342,9 @@ const combinedRef = useCallback(
       </motion.div>
     );
   });
+  
+  // Add display name to fix ESLint error
+  MessageItem.displayName = "MessageItem";
 
   return (
     <div className="flex flex-col h-screen max-w-screen-xl mx-auto bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900">
