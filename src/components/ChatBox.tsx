@@ -279,6 +279,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       rotationAngle: 0,
       swipeDuration: 500,
     });
+    MessageItem.displayName = "MessageItem";
 
     const { ref: swipeRef, ...swipeProps } = swipeHandlers;
 
