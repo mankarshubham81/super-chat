@@ -1,4 +1,3 @@
-// MessageInput.tsx
 import React, { 
   useState, 
   useRef, 
@@ -6,8 +5,8 @@ import React, {
   forwardRef, 
   useImperativeHandle 
 } from "react";
+import Image from "next/image";
 
-// Export the handle type
 export interface MessageInputHandle {
   focus: () => void;
 }
@@ -16,10 +15,6 @@ interface MessageInputProps {
   onSend: (message: string, imageUrl?: string) => void;
   onTyping?: () => void;
 }
-
-// interface MessageInputHandle {
-//   focus: () => void;
-// }
 
 const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(({
   onSend,
@@ -142,17 +137,17 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(({
   return (
     <div className="flex flex-col w-full">
       {(previewUrl || imageUrl) && (
-        <div className="relative mb-2">
-          <img
-            src={previewUrl || imageUrl || "invalid url"}
+        <div className="relative mb-2 w-32 h-24">
+          <Image
+            src={previewUrl || imageUrl || ""}
             alt="Preview"
-            className="max-w-[120px] h-auto rounded-lg border-2 border-purple-500"
+            fill
+            className="rounded-lg border-2 border-purple-500 object-contain"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.onerror = null;
-              target.style.display = "none";
               target.parentElement!.innerHTML = `
-                <div class="bg-gray-800 text-gray-400 border border-gray-700 rounded-lg w-32 h-24 flex items-center justify-center text-xs p-2">
+                <div class="bg-gray-800 text-gray-400 border border-gray-700 rounded-lg w-full h-full flex items-center justify-center text-xs p-2">
                   Image failed to load
                 </div>
               `;
@@ -264,5 +259,8 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(({
     </div>
   );
 });
+
+// Add display name to fix ESLint error
+MessageInput.displayName = "MessageInput";
 
 export default MessageInput;
