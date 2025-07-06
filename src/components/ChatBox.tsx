@@ -237,7 +237,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     if (el) messageRefs.current[id] = el;
   }, []);
 
-  // MessageItem component with swipe functionality
+  // MessageItem component with fixed swipe functionality
   const MessageItem = React.memo(({
     msg,
     isOriginalMessage,
@@ -261,7 +261,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     scrollToMessage: (messageId: string) => void;
     repliedMessage: Message | null;
   }) => {
-    // Swipe handlers for mobile
+    // Fixed swipe handlers for mobile
     const swipeHandlers = useSwipeable({
       onSwipedRight: () => handleReply(msg),
       delta: 50,
@@ -274,32 +274,35 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
     const { ref: swipeRef, ...swipeProps } = swipeHandlers;
 
-    // Create a combined ref that handles both our message ref and the swipe ref
-    const combinedRef = useCallback(
+    // Create a combined ref callback
+    const setRefs = useCallback(
       (el: HTMLDivElement | null) => {
-        setMessageRef(msg.id)(el);
-        if (el) swipeRef(el);
+        setMessageRef(msg.id)(el); // Scroll tracking ref
+        swipeRef(el); // Swipe handler ref from useSwipeable
       },
-      [setMessageRef, msg.id, swipeRef]
+      [msg.id, setMessageRef, swipeRef]
     );
 
     return (
-      <motion.div
-        key={msg.id}
-        ref={combinedRef}
-        {...(isMobile ? swipeProps : {})}
-        className={`flex my-1 md:my-2 transition-all duration-300`}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        onDoubleClick={() => handleDoubleTap(msg)}
+      <div 
+      className={`flex my-1 md:my-2 w-full ${msg.sender === userName ? 'justify-end' : 'justify-start'}`}
       >
-        <div
-          className={`p-3 md:p-4 rounded-xl shadow-md text-sm font-medium ${isHighlighted ? "ring-4 ring-amber-400/80 bg-amber-100/10 shadow-xl animate-pulse rounded-2xl" : ""} max-w-[85%] md:max-w-xl w-full ${
+        <motion.div
+          ref={setRefs}
+          {...(isMobile ? swipeProps : {})}
+          className={`p-3 md:p-4 rounded-xl shadow-md text-sm font-medium ${
+            isHighlighted 
+              ? "ring-4 ring-amber-400/80 bg-amber-100/10 shadow-xl animate-pulse rounded-2xl" 
+              : ""
+          } max-w-[85%] md:max-w-xl w-full ${
             msg.sender === userName 
-              ? "bg-purple-700 text-white ml-auto" 
+              ? "bg-purple-700 text-white" 
               : "bg-indigo-600 text-white"
           } ${isOriginalMessage ? "ring-2 ring-yellow-400" : ""}`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          onDoubleClick={() => handleDoubleTap(msg)}
         >
           {msg.replyTo && (
             <div 
@@ -338,8 +341,8 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           <div className="text-right text-xs text-gray-300 mt-1">
             {formatTimestamp(msg.timestamp)}
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     );
   });
   
