@@ -1,4 +1,3 @@
-// MessageInput.tsx
 import React, { 
   useState, 
   useRef, 
@@ -6,6 +5,7 @@ import React, {
   useImperativeHandle,
   useEffect
 } from "react";
+import Image from "next/image";
 
 export type MessageInputRef = {
   focus: () => void;
@@ -141,11 +141,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     return (
       <div className="flex flex-col w-full">
         {(previewUrl || imageUrl) && (
-          <div className="relative mb-2">
-            <img
-              src={previewUrl || imageUrl || "invalid url"}
+          <div className="relative mb-2 w-[150px] h-[150px]">
+            <Image
+              src={previewUrl || imageUrl || ""}
               alt="Preview"
-              className="max-w-[150px] h-auto rounded-lg border-2 border-purple-500"
+              fill
+              className="object-cover rounded-lg border-2 border-purple-500"
+              unoptimized
             />
             {uploading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-sm rounded-lg">
@@ -228,5 +230,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     );
   }
 );
+
+MessageInput.displayName = "MessageInput";
 
 export default MessageInput;
