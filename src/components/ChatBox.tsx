@@ -147,7 +147,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   };
 
   // === HANDLE TOUCH FOR SWIPE RIGHT TO REPLY === //
-  const handleTouchStart = (e: TouchEvent, msgId: string) => {
+  const handleTouchStart = (e: TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
   };
 
