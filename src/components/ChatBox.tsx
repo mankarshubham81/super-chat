@@ -1,7 +1,7 @@
 // ChatBox.tsx
-import React, { useEffect, useState, useRef, TouchEvent } from "react";
+import React, { useEffect, useState, useRef, TouchEvent, useCallback } from "react";
 import io, { Socket } from "socket.io-client";
-import MessageInput from "./MessageInput";
+import MessageInput, { MessageInputRef } from "./MessageInput";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
 
@@ -28,11 +28,14 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [swipeProgress, setSwipeProgress] = useState<{ id: string; distance: number } | null>(null);
 
   const socketRef = useRef<typeof Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement>>({});
+  const messageInputRef = useRef<MessageInputRef>(null);
   const touchStartX = useRef<number | null>(null);
+  const swipeThreshold = 100;
 
   // ========== SOCKET SETUP ========== //
   useEffect(() => {
@@ -105,13 +108,16 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     setReplyingTo(null);
   };
 
-  const handleReply = (msg: Message) => {
+  const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
+    setSwipeProgress(null);
+    
     setTimeout(() => {
       messageRefs.current[msg.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
       setHighlightedMessageId(msg.id);
+      messageInputRef.current?.focus();
     }, 100);
-  };
+  }, []);
 
   const handleTyping = (() => {
     let lastEmit = 0;
@@ -146,16 +152,134 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     );
   };
 
-  // === HANDLE TOUCH FOR SWIPE RIGHT TO REPLY === //
-  const handleTouchStart = (e: TouchEvent) => {
+  // === ENHANCED SWIPE HANDLING === //
+  const handleTouchStart = (e: TouchEvent, msg: Message) => {
     touchStartX.current = e.touches[0].clientX;
+    setSwipeProgress({ id: msg.id, distance: 0 });
+  };
+
+  const handleTouchMove = (e: TouchEvent, msg: Message) => {
+    if (touchStartX.current === null) return;
+    
+    const currentX = e.touches[0].clientX;
+    const distance = Math.max(0, currentX - touchStartX.current);
+    
+    if (distance > 0) {
+      setSwipeProgress({ 
+        id: msg.id, 
+        distance: Math.min(distance, swipeThreshold + 50)
+      });
+    }
   };
 
   const handleTouchEnd = (e: TouchEvent, msg: Message) => {
-    const start = touchStartX.current;
-    const end = e.changedTouches[0].clientX;
-    if (start !== null && end - start > 80) handleReply(msg);
+    if (touchStartX.current === null) return;
+    
+    const endX = e.changedTouches[0].clientX;
+    const distance = endX - touchStartX.current;
+    
+    if (distance > swipeThreshold) {
+      handleReply(msg);
+    } else {
+      setSwipeProgress(null);
+    }
+    
     touchStartX.current = null;
+  };
+
+  const renderMessageItem = (msg: Message) => {
+    const isMine = msg.sender === userName;
+    const isReplyHighlight = highlightedMessageId === msg.id;
+    const isSwiping = swipeProgress?.id === msg.id;
+    const swipeDistance = isSwiping ? swipeProgress.distance : 0;
+    const swipePercentage = Math.min(100, (swipeDistance / swipeThreshold) * 100);
+
+    return (
+      <motion.div
+        key={msg.id}
+        ref={(el: HTMLDivElement | null) => {
+          if (el) messageRefs.current[msg.id] = el;
+        }}
+        className={`flex my-2 relative ${isMine ? "justify-end" : "justify-start"}`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        onDoubleClick={() => handleReply(msg)}
+        onTouchStart={(e) => handleTouchStart(e, msg)}
+        onTouchMove={(e) => handleTouchMove(e, msg)}
+        onTouchEnd={(e) => handleTouchEnd(e, msg)}
+      >
+        {/* Swipe Feedback Indicator */}
+        {isSwiping && (
+          <motion.div 
+            className="absolute inset-y-0 left-0 flex items-center pl-2"
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: swipePercentage > 10 ? 1 : 0,
+              x: Math.min(swipeDistance, swipeThreshold) - 30
+            }}
+          >
+            <svg
+              className="w-6 h-6 text-purple-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+              />
+            </svg>
+          </motion.div>
+        )}
+
+        {/* Message Content */}
+        <motion.div
+          className={`relative p-4 rounded-xl shadow-md text-sm font-medium max-w-sm w-full break-words z-10 ${
+            isMine ? "bg-purple-700 text-white ml-auto" : "bg-indigo-600 text-white"
+          } ${isReplyHighlight ? "ring-4 ring-yellow-400" : ""}`}
+          style={{ 
+            transform: isSwiping ? `translateX(${swipeDistance}px)` : 'none',
+            transition: isSwiping ? 'none' : 'transform 0.2s ease'
+          }}
+        >
+          {msg.replyTo && (
+            <div
+              className="mb-2 p-2 rounded bg-indigo-800 border-l-4 border-blue-400 text-gray-200 text-sm italic cursor-pointer"
+              onClick={() => {
+                const original = messages.find((m) => m.id === msg.replyTo);
+                if (original) {
+                  messageRefs.current[original.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  setHighlightedMessageId(original.id);
+                  messageInputRef.current?.focus();
+                }
+              }}
+            >
+              Replying to:{" "}
+              <span className="font-semibold">
+                {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
+              </span>
+            </div>
+          )}
+          <div className="text-xs font-semibold text-gray-300 mb-1">
+            {msg.sender === userName ? "You" : msg.sender}
+          </div>
+          {msg.imageUrl && (
+            <img
+              src={msg.imageUrl}
+              alt="Attached"
+              className="rounded-lg max-w-full max-h-48 border border-white mb-2"
+            />
+          )}
+          {renderMessageText(msg.text)}
+          <div className="text-right text-xs text-gray-300 mt-1">
+            {formatTimestamp(msg.timestamp)}
+          </div>
+        </motion.div>
+      </motion.div>
+    );
   };
 
   return (
@@ -201,64 +325,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900">
-        {messages.map((msg) => {
-          const isMine = msg.sender === userName;
-          const isReplyHighlight = highlightedMessageId === msg.id;
-
-          return (
-            <motion.div
-              key={msg.id}
-              ref={(el: HTMLDivElement | null) => {
-                if (el) messageRefs.current[msg.id] = el;
-              }}
-              className={`flex my-2 ${isMine ? "justify-end" : "justify-start"}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              onDoubleClick={() => handleReply(msg)}
-              onTouchStart={(e) => handleTouchStart(e, msg.id)}
-              onTouchEnd={(e) => handleTouchEnd(e, msg)}
-            >
-              <div
-                className={`relative p-4 rounded-xl shadow-md text-sm font-medium max-w-sm w-full break-words ${
-                  isMine ? "bg-purple-700 text-white ml-auto" : "bg-indigo-600 text-white"
-                } ${isReplyHighlight ? "ring-4 ring-yellow-400" : ""}`}
-              >
-                {msg.replyTo && (
-                  <div
-                    className="mb-2 p-2 rounded bg-indigo-800 border-l-4 border-blue-400 text-gray-200 text-sm italic cursor-pointer"
-                    onClick={() => {
-                      const original = messages.find((m) => m.id === msg.replyTo);
-                      if (original) {
-                        messageRefs.current[original.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-                        setHighlightedMessageId(original.id);
-                      }
-                    }}
-                  >
-                    Replying to:{" "}
-                    <span className="font-semibold">
-                      {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
-                    </span>
-                  </div>
-                )}
-                <div className="text-xs font-semibold text-gray-300 mb-1">
-                  {msg.sender === userName ? "You" : msg.sender}
-                </div>
-                {msg.imageUrl && (
-                  <img
-                    src={msg.imageUrl}
-                    alt="Attached"
-                    className="rounded-lg max-w-full max-h-48 border border-white mb-2"
-                  />
-                )}
-                {renderMessageText(msg.text)}
-                <div className="text-right text-xs text-gray-300 mt-1">
-                  {formatTimestamp(msg.timestamp)}
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
+        {messages.map(renderMessageItem)}
         <div ref={messagesEndRef} />
       </div>
 
@@ -305,7 +372,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
       {/* Input */}
       <div className="sticky bottom-0 z-10 bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900 p-4 shadow-md rounded-t-lg">
-        <MessageInput onSend={sendMessage} onTyping={handleTyping} />
+        <MessageInput ref={messageInputRef} onSend={sendMessage} onTyping={handleTyping} />
       </div>
     </div>
   );
