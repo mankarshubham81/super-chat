@@ -1,9 +1,9 @@
-// ChatBox.tsx
 import React, { useEffect, useState, useRef, TouchEvent, useCallback } from "react";
 import io, { Socket } from "socket.io-client";
 import MessageInput, { MessageInputRef } from "./MessageInput";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
+import Image from "next/image";
 
 type Message = {
   id: string;
@@ -267,11 +267,15 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
             {msg.sender === userName ? "You" : msg.sender}
           </div>
           {msg.imageUrl && (
-            <img
-              src={msg.imageUrl}
-              alt="Attached"
-              className="rounded-lg max-w-full max-h-48 border border-white mb-2"
-            />
+            <div className="relative w-full h-48 mb-2">
+              <Image
+                src={msg.imageUrl}
+                alt="Attached image"
+                fill
+                className="rounded-lg object-contain border border-white"
+                unoptimized
+              />
+            </div>
           )}
           {renderMessageText(msg.text)}
           <div className="text-right text-xs text-gray-300 mt-1">
