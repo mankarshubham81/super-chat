@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useCallback
 } from "react";
-import Image from "next/image";
+
 
 export type MessageInputRef = {
   focus: () => void;
