@@ -62,7 +62,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const touchStartX = useRef<number | null>(null);
   const swipeThreshold = isMobile ? 80 : 100;
   const scrollToBottomTimeout = useRef<NodeJS.Timeout | null>(null);
-  const lastMessageRef = useRef<HTMLDivElement>(null);
 
   // ========== SOCKET SETUP ========== //
   useEffect(() => {
