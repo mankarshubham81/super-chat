@@ -381,7 +381,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder="Type a message..."
-              className="w-full bg-gray-600/30 backdrop-blur-sm text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[44px] max-h-32 transition-all border border-gray-600 pr-10"
+              className="w-full bg-gray-600/30 backdrop-blur-sm text-white rounded-xl p-2  focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[44px] max-h-32 transition-all border border-gray-600 pr-10"
               rows={1}
               disabled={uploading}
             />
@@ -393,7 +393,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               disabled={uploading}
               style={{ bottom: '12px' }}
             >
-              <FiSmile className="w-5 h-5" />
+              <FiSmile className="w-6 h-6" />
             </button>
           </div>
 
@@ -412,7 +412,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             {uploading ? (
               <div className="w-4 h-4 border-t-2 border-white border-solid rounded-full animate-spin"></div>
             ) : (
-              <FiSend className="w-5 h-5" />
+              <FiSend className="w-5 h-5 text-gray-200" />
             )}
           </button>
         </div>
