@@ -467,7 +467,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       )}
 
       {/* Input */}
-      <div className="sticky bottom-0 z-10 bg-gradient-to-t from-gray-800 to-gray-900/90 backdrop-blur-sm p-4 border-t border-white/5">
+      <div className="sticky bottom-0 z-10 border-t border-white/5">
         <MessageInput ref={messageInputRef} onSend={sendMessage} onTyping={handleTyping} />
       </div>
     </div>
