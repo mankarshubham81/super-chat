@@ -22,6 +22,24 @@ type User = {
   status: "online" | "typing" | "offline";
 };
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    if (media.matches !== matches) {
+      setMatches(media.matches);
+    }
+    
+    const listener = () => setMatches(media.matches);
+    window.addEventListener("resize", listener);
+    
+    return () => window.removeEventListener("resize", listener);
+  }, [matches, query]);
+
+  return matches;
+}
+
 export default function ChatBox({ room, userName }: { room: string; userName: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [socketConnected, setSocketConnected] = useState(false);
@@ -33,6 +51,8 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const [newMessagesIndicator, setNewMessagesIndicator] = useState(false);
   const [swipeProgress, setSwipeProgress] = useState<{ id: string; distance: number } | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const socketRef = useRef<typeof Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -40,8 +60,9 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const messageRefs = useRef<Record<string, HTMLDivElement>>({});
   const messageInputRef = useRef<MessageInputRef>(null);
   const touchStartX = useRef<number | null>(null);
-  const swipeThreshold = 100;
-  // const scrollThreshold = 150;
+  const swipeThreshold = isMobile ? 80 : 100;
+  const scrollToBottomTimeout = useRef<NodeJS.Timeout | null>(null);
+  const lastMessageRef = useRef<HTMLDivElement>(null);
 
   // ========== SOCKET SETUP ========== //
   useEffect(() => {
@@ -117,7 +138,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
   useEffect(() => {
     if (isAtBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      scrollToBottom();
     }
   }, [messages, isAtBottom]);
 
@@ -128,6 +149,17 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     }
   }, [highlightedMessageId]);
 
+  const scrollToBottom = useCallback(() => {
+    if (scrollToBottomTimeout.current) {
+      clearTimeout(scrollToBottomTimeout.current);
+    }
+    
+    scrollToBottomTimeout.current = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      setNewMessagesIndicator(false);
+    }, 100);
+  }, []);
+
   const sendMessage = (text: string, imageUrl?: string) => {
     if (!socketRef.current) return;
     socketRef.current.emit("send-message", {
@@ -135,6 +167,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       message: { text, replyTo: replyingTo?.id || null, imageUrl },
     });
     setReplyingTo(null);
+    scrollToBottom();
   };
 
   const handleReply = useCallback((msg: Message) => {
@@ -179,11 +212,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         part
       )
     );
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    setNewMessagesIndicator(false);
   };
 
   // === ENHANCED SWIPE HANDLING === //
@@ -259,7 +287,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
         {/* Message Content */}
         <motion.div
-          className={`relative p-4 rounded-2xl shadow-md text-sm font-medium max-w-xs md:max-w-md w-full break-words z-10 transition-all ${
+          className={`relative p-4 rounded-2xl shadow-md text-sm font-medium ${isMobile ? 'max-w-[85%]' : 'max-w-xs md:max-w-md'} w-full break-words z-10 transition-all ${
             isMine 
               ? "bg-gradient-to-br from-purple-600 to-purple-700 text-white ml-auto" 
               : "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
@@ -350,7 +378,9 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       <AnimatePresence>
         {showUserList && (
           <motion.div
-            className="bg-gray-800/90 backdrop-blur-lg p-4 shadow-xl border-b border-white/10"
+            className={`bg-gray-800/90 backdrop-blur-lg p-4 shadow-xl border-b border-white/10 ${
+              isMobile ? 'fixed inset-0 z-50' : ''
+            }`}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -386,7 +416,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       {/* Messages */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90 relative"
+        className="flex-1 overflow-y-auto p-4 bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90 relative pb-24"
       >
         {messages.map(renderMessageItem)}
         <div ref={messagesEndRef} />
@@ -394,7 +424,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         {/* New Messages Indicator */}
         {newMessagesIndicator && (
           <motion.button
-            className="fixed bottom-24 right-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-full shadow-lg z-10 flex items-center"
+            className="fixed bottom-24 right-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-full shadow-lg z-10 flex items-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
@@ -467,7 +497,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       )}
 
       {/* Input */}
-      <div className="sticky bottom-0 z-10 border-t border-white/5">
+      <div className="sticky bottom-0 z-10 border-t border-white/5 pb-[env(safe-area-inset-bottom)] bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90">
         <MessageInput ref={messageInputRef} onSend={sendMessage} onTyping={handleTyping} />
       </div>
     </div>
