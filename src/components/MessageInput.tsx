@@ -98,6 +98,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
@@ -297,8 +298,24 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       textareaRef.current?.focus();
     };
 
+    // Close emoji picker when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (
+          containerRef.current && 
+          !containerRef.current.contains(e.target as Node) &&
+          !(e.target as Element).closest('.emoji-picker')
+        ) {
+          setShowEmojiPicker(false);
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
     return (
-      <div className="flex flex-col w-full">
+      <div className="w-full pb-[env(safe-area-inset-bottom)]" ref={containerRef}>
         {/* Error message */}
         {error && (
           <div className="mb-2 p-2 bg-red-900/30 text-red-200 rounded-lg text-sm flex items-center border border-red-700/50">
@@ -381,7 +398,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder="Type a message..."
-              className="w-full bg-gray-600/30 backdrop-blur-sm text-white rounded-xl p-2  focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[44px] max-h-32 transition-all border border-gray-600 pr-10"
+              className="w-full bg-gray-600/30 backdrop-blur-sm text-white rounded-xl p-2 pl-3 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[44px] max-h-32 transition-all border border-gray-600 pr-10"
               rows={1}
               disabled={uploading}
             />
@@ -419,7 +436,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
         {/* Emoji Picker */}
         {showEmojiPicker && (
-          <div className="absolute bottom-24 right-0 z-50">
+          <div className="fixed bottom-24 left-0 right-0 z-50 mx-auto max-w-md">
             <EmojiPicker onSelect={addEmoji} onClickOutside={() => setShowEmojiPicker(false)} />
           </div>
         )}
