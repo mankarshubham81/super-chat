@@ -99,7 +99,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const dropZoneRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const abortControllerRef = useRef<AbortController | null>(null);
+    const xhrRef = useRef<XMLHttpRequest | null>(null); // Store xhr for proper abort
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
@@ -161,19 +161,20 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const startImageUpload = async (file: File) => {
       setUploading(true);
       setUploadProgress(0);
-      abortControllerRef.current = new AbortController();
+      setError(null);
 
       try {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
 
+        // FIX: Removed space in Cloudinary URL
+        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`;
+        
         const xhr = new XMLHttpRequest();
-        xhr.open(
-          "POST",
-          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`
-        );
+        xhrRef.current = xhr; // Store xhr for aborting
 
+        xhr.open("POST", cloudinaryUrl);
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
             const percentComplete = (event.loaded / event.total) * 100;
@@ -199,9 +200,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           handleUploadError("Network error during upload");
         };
 
+        xhr.onabort = () => {
+          handleUploadError("Upload aborted");
+        };
+
         xhr.send(formData);
-      } catch {
-        handleUploadError("Upload aborted or failed");
+      } catch (e) {
+        handleUploadError("Upload failed");
       }
     };
 
@@ -212,10 +217,17 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
       }
+      // FIX: Reset file input to allow re-selecting same file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     };
 
     const cancelUpload = () => {
-      abortControllerRef.current?.abort();
+      if (xhrRef.current) {
+        xhrRef.current.abort();
+        xhrRef.current = null;
+      }
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
@@ -223,6 +235,10 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       setImageUrl(null);
       setUploading(false);
       setError(null);
+      // FIX: Reset file input to allow re-selecting same file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     };
 
     const handleSend = () => {
@@ -235,6 +251,10 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         if (previewUrl) {
           URL.revokeObjectURL(previewUrl);
           setPreviewUrl(null);
+        }
+        // FIX: Reset file input after sending
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
         }
       }
       textareaRef.current?.focus();
@@ -374,6 +394,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleFile(file);
+                // FIX: Always reset file input value to allow re-selecting same file
                 e.target.value = "";
               }}
             />
