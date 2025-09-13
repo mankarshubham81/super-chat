@@ -75,14 +75,14 @@ const CircularProgress = ({ progress, size = 60, strokeWidth = 6 }: {
   );
 };
 
-  type EmojiSelectData = {
-    id: string;
-    name: string;
-    native: string;
-    unified: string;
-    shortcodes: string;
-    keywords?: string[];
-  };
+type EmojiSelectData = {
+  id: string;
+  name: string;
+  native: string;
+  unified: string;
+  shortcodes: string;
+  keywords?: string[];
+};
 
 const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
   ({ onSend, onTyping }, ref) => {
@@ -93,12 +93,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const xhrRef = useRef<XMLHttpRequest | null>(null);
+
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
@@ -127,8 +128,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           132
         );
         textareaRef.current.style.height = `${newHeight}px`;
-        
-        // Only show scrollbar when content exceeds max height
         textareaRef.current.style.overflowY = newHeight >= 132 ? "auto" : "hidden";
       }
     }, []);
@@ -142,68 +141,68 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         setError("Unsupported file type. Please upload an image (JPEG, PNG, GIF, WEBP).");
         return false;
       }
-
       if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
         setError(`File size exceeds limit (max ${MAX_FILE_SIZE_MB}MB)`);
         return false;
       }
-
       return true;
     };
 
     const handleFile = (file: File | null) => {
       if (!file) return;
-      
       setError(null);
-      
-      if (!validateFile(file)) {
-        return;
-      }
+      if (!validateFile(file)) return;
 
       const preview = URL.createObjectURL(file);
       setPreviewUrl(preview);
       startImageUpload(file);
     };
 
-    const startImageUpload = (file: File) => {
+    const startImageUpload = async (file: File) => {
       setUploading(true);
       setUploadProgress(0);
+      abortControllerRef.current = new AbortController();
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
 
-      const xhr = new XMLHttpRequest();
-      xhrRef.current = xhr;
+        const xhr = new XMLHttpRequest();
+        xhr.open(
+          "POST",
+          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`
+        );
 
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          setUploadProgress(Math.round(percentComplete));
-        }
-      };
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            setUploadProgress(Math.round(percentComplete));
+          }
+        };
 
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          const data = JSON.parse(xhr.responseText);
-          setImageUrl(data.secure_url);
-          if (previewUrl) URL.revokeObjectURL(previewUrl);
-          setPreviewUrl(null);
-          setError(null);
-        } else {
-          handleUploadError(`Upload failed: ${xhr.statusText}`);
-        }
-        setUploading(false);
-        xhrRef.current = null;
-        textareaRef.current?.focus();
-      };
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            const data = JSON.parse(xhr.responseText);
+            setImageUrl(data.secure_url);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(null);
+            setError(null);
+          } else {
+            handleUploadError(`Upload failed: ${xhr.statusText}`);
+          }
+          setUploading(false);
+          textareaRef.current?.focus();
+        };
 
-      xhr.onerror = () => {
-        handleUploadError("Network error during upload");
-      };
+        xhr.onerror = () => {
+          handleUploadError("Network error during upload");
+        };
 
-      xhr.open("POST", `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`);
-      xhr.send(formData);
+        xhr.send(formData);
+      } catch (err) {
+        handleUploadError("Upload aborted or failed");
+      }
     };
 
     const handleUploadError = (message: string) => {
@@ -213,19 +212,14 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
       }
-      xhrRef.current = null;
     };
 
     const cancelUpload = () => {
-      if (uploading && xhrRef.current) {
-        xhrRef.current.abort();
-      }
-      
+      abortControllerRef.current?.abort();
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
       }
-      
       setImageUrl(null);
       setUploading(false);
       setError(null);
@@ -238,7 +232,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         setImageUrl(null);
         resetTextareaHeight();
         setError(null);
-        
         if (previewUrl) {
           URL.revokeObjectURL(previewUrl);
           setPreviewUrl(null);
@@ -260,29 +253,24 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       e.stopPropagation();
       if (!isDragging) setIsDragging(true);
     };
-
     const handleDragLeave = (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
     };
-
     const handleDrop = (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-      
       const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        handleFile(files[0]);
-      }
+      if (files.length > 0) handleFile(files[0]);
     };
 
-    // Paste image from clipboard
+    // Paste image
     const handlePaste = (e: React.ClipboardEvent) => {
       const items = e.clipboardData.items;
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
+        if (items[i].type.startsWith("image/")) {
           const file = items[i].getAsFile();
           if (file) {
             handleFile(file);
@@ -293,34 +281,36 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       }
     };
 
-    const addEmoji = (emoji : EmojiSelectData ) => {
-      setMessage((prev: string) => prev + emoji.native);
+    const addEmoji = (emoji: EmojiSelectData) => {
+      setMessage((prev) => prev + emoji.native);
       textareaRef.current?.focus();
     };
 
-    // Close emoji picker when clicking outside
     useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
         if (
-          containerRef.current && 
+          containerRef.current &&
           !containerRef.current.contains(e.target as Node) &&
-          !(e.target as Element).closest('.emoji-picker')
+          !(e.target as Element).closest(".emoji-picker")
         ) {
           setShowEmojiPicker(false);
         }
       };
-
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     return (
       <div className="w-full pb-[env(safe-area-inset-bottom)]" ref={containerRef}>
-        {/* Error message */}
+        {/* Error */}
         {error && (
           <div className="mb-2 p-2 bg-red-900/30 text-red-200 rounded-lg text-sm flex items-center border border-red-700/50">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              <path
+                fillRule="evenodd"
+                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                clipRule="evenodd"
+              />
             </svg>
             {error}
           </div>
@@ -333,17 +323,17 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               <Image
                 src={previewUrl || imageUrl!}
                 alt="Preview"
-                layout="fill"
-                objectFit="contain"
+                fill
+                style={{ objectFit: "contain" }}
               />
             </div>
-            
+
             {uploading && (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                 <CircularProgress progress={uploadProgress} size={80} strokeWidth={6} />
               </div>
             )}
-            
+
             <button
               onClick={cancelUpload}
               className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-colors shadow-lg focus:outline-none focus:ring-2 focus:ring-red-400"
@@ -354,20 +344,24 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           </div>
         )}
 
-        {/* Main input area */}
-        <div 
+        {/* Main input */}
+        <div
           ref={dropZoneRef}
           className={`flex items-end space-x-2 p-2 rounded-xl transition-all duration-200 ${
-            isDragging ? "bg-purple-900/30 ring-2 ring-purple-500" : "bg-gray-700/30 backdrop-blur-sm"
+            isDragging
+              ? "bg-purple-900/30 ring-2 ring-purple-500"
+              : "bg-gray-700/30 backdrop-blur-sm"
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           {/* File input */}
-          <label 
+          <label
             className={`cursor-pointer p-2 rounded-lg transition-colors flex-shrink-0 ${
-              uploading ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-600/50 text-gray-300 hover:text-white"
+              uploading
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-gray-600/50 text-gray-300 hover:text-white"
             }`}
             title="Attach an image"
           >
@@ -380,13 +374,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleFile(file);
-                e.target.value = ""; // Reset to allow selecting same file again
+                e.target.value = "";
               }}
             />
             <FiPaperclip className="w-5 h-5" />
           </label>
 
-          {/* Textarea container */}
+          {/* Textarea */}
           <div className="flex-grow relative">
             <textarea
               ref={textareaRef}
@@ -402,13 +396,11 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               rows={1}
               disabled={uploading}
             />
-            
-            {/* Emoji picker button */}
             <button
-              onClick={() => setShowEmojiPicker(prev => !prev)}
+              onClick={() => setShowEmojiPicker((prev) => !prev)}
               className="absolute right-2 bottom-2 text-gray-400 hover:text-white transition-colors"
               disabled={uploading}
-              style={{ bottom: '12px' }}
+              style={{ bottom: "12px" }}
             >
               <FiSmile className="w-6 h-6" />
             </button>
@@ -419,11 +411,11 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             onClick={handleSend}
             disabled={uploading || (!message.trim() && !imageUrl)}
             className={`flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full font-medium transition-colors ${
-              uploading 
-                ? "bg-purple-600/50 cursor-wait" 
-                : (!message.trim() && !imageUrl) 
-                  ? "bg-gray-600 cursor-not-allowed" 
-                  : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg"
+              uploading
+                ? "bg-purple-600/50 cursor-wait"
+                : !message.trim() && !imageUrl
+                ? "bg-gray-600 cursor-not-allowed"
+                : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg"
             }`}
           >
             {uploading ? (
@@ -437,7 +429,10 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         {/* Emoji Picker */}
         {showEmojiPicker && (
           <div className="fixed bottom-24 left-0 right-0 z-50 mx-auto max-w-md">
-            <EmojiPicker onSelect={addEmoji} onClickOutside={() => setShowEmojiPicker(false)} />
+            <EmojiPicker
+              onSelect={addEmoji}
+              onClickOutside={() => setShowEmojiPicker(false)}
+            />
           </div>
         )}
 
@@ -448,9 +443,15 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               <div className="bg-gradient-to-r from-purple-600 to-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mb-4">
                 <FiPaperclip className="w-8 h-8 text-white" />
               </div>
-              <p className="text-xl font-semibold text-white mb-2">Drop to upload image</p>
-              <p className="text-gray-400">Supports JPG, PNG, GIF (max {MAX_FILE_SIZE_MB}MB)</p>
-              <p className="text-gray-500 text-sm mt-3">Release your file to attach it to the message</p>
+              <p className="text-xl font-semibold text-white mb-2">
+                Drop to upload image
+              </p>
+              <p className="text-gray-400">
+                Supports JPG, PNG, GIF (max {MAX_FILE_SIZE_MB}MB)
+              </p>
+              <p className="text-gray-500 text-sm mt-3">
+                Release your file to attach it to the message
+              </p>
             </div>
           </div>
         )}
@@ -460,5 +461,4 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 );
 
 MessageInput.displayName = "MessageInput";
-
 export default MessageInput;
