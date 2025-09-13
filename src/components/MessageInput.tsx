@@ -200,7 +200,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         };
 
         xhr.send(formData);
-      } catch (err) {
+      } catch {
         handleUploadError("Upload aborted or failed");
       }
     };
