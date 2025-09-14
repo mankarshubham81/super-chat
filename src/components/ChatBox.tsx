@@ -63,8 +63,8 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const swipeThreshold = isMobile ? 80 : 100;
   const scrollToBottomTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // ========== SOCKET SETUP ========== //
   useEffect(() => {
+    // FIXED: Removed extra space in socket URL
     const socket = io("https://super-chat-backend.onrender.com", {
       transports: ["websocket", "polling"],
       reconnection: true,
@@ -117,7 +117,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     };
   }, [room, userName, isAtBottom]);
 
-  // Scroll management
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -135,19 +134,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     return () => container.removeEventListener("scroll", handleScroll);
   }, [newMessagesIndicator]);
 
-  useEffect(() => {
-    if (isAtBottom) {
-      scrollToBottom();
-    }
-  }, [messages, isAtBottom]);
-
-  useEffect(() => {
-    if (highlightedMessageId) {
-      const timer = setTimeout(() => setHighlightedMessageId(null), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [highlightedMessageId]);
-
   const scrollToBottom = useCallback(() => {
     if (scrollToBottomTimeout.current) {
       clearTimeout(scrollToBottomTimeout.current);
@@ -158,6 +144,21 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
       setNewMessagesIndicator(false);
     }, 100);
   }, []);
+
+  useEffect(() => {
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+  }, [messages, isAtBottom, scrollToBottom]);
+
+  useEffect(() => {
+    if (highlightedMessageId) {
+      const timer = setTimeout(() => setHighlightedMessageId(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedMessageId]);
+
+
 
   const sendMessage = (text: string, imageUrl?: string) => {
     if (!socketRef.current) return;
@@ -213,7 +214,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     );
   };
 
-  // === ENHANCED SWIPE HANDLING === //
   const handleTouchStart = (e: React.TouchEvent, msg: Message) => {
     touchStartX.current = e.touches[0].clientX;
     setSwipeProgress({ id: msg.id, distance: 0 });
@@ -270,7 +270,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         onTouchMove={(e) => handleTouchMove(e, msg)}
         onTouchEnd={(e) => handleTouchEnd(e, msg)}
       >
-        {/* Swipe Feedback Indicator */}
         {isSwiping && (
           <motion.div 
             className="absolute inset-y-0 left-0 flex items-center pl-2 z-0"
@@ -284,7 +283,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           </motion.div>
         )}
 
-        {/* Message Content */}
         <motion.div
           className={`relative p-4 rounded-2xl shadow-md text-sm font-medium ${isMobile ? 'max-w-[85%]' : 'max-w-xs md:max-w-md'} w-full break-words z-10 transition-all ${
             isMine 
@@ -351,7 +349,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
   return (
     <div className="flex flex-col h-screen max-w-screen-xl mx-auto overflow-hidden bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90">
-      {/* Header */}
       <div className="sticky top-0 z-20 bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90 backdrop-blur-sm text-white p-3 shadow-lg flex justify-between items-center border-b border-white/10">
         <div className="flex items-center">
           <div className="text-lg font-bold truncate max-w-[120px] sm:max-w-xs">{room}</div>
@@ -373,7 +370,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         </div>
       </div>
 
-      {/* User List */}
       <AnimatePresence>
         {showUserList && (
           <motion.div
@@ -412,7 +408,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         )}
       </AnimatePresence>
 
-      {/* Messages */}
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90 relative pb-24"
@@ -420,7 +415,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         {messages.map(renderMessageItem)}
         <div ref={messagesEndRef} />
         
-        {/* New Messages Indicator */}
         {newMessagesIndicator && (
           <motion.button
             className="fixed bottom-24 right-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-full shadow-lg z-10 flex items-center"
@@ -435,7 +429,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         )}
       </div>
 
-      {/* Replying To */}
       {replyingTo && (
         <motion.div
           className="bg-yellow-900/30 border-l-4 border-yellow-500 text-gray-200 p-3 flex justify-between items-center"
@@ -465,7 +458,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         </motion.div>
       )}
 
-      {/* Typing Indicator */}
       {typingUsers.length > 0 && (
         <motion.div
           className="sticky bottom-20 px-4 text-sm text-purple-300 bg-purple-900/30 backdrop-blur-sm rounded-full w-max mx-auto py-1.5"
@@ -495,7 +487,6 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
         </motion.div>
       )}
 
-      {/* Input */}
       <div className="sticky bottom-0 z-10 border-t border-white/5 pb-[env(safe-area-inset-bottom)] bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90">
         <MessageInput ref={messageInputRef} onSend={sendMessage} onTyping={handleTyping} />
       </div>
