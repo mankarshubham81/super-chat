@@ -10,7 +10,6 @@ import Image from "next/image";
 import { FiSend, FiX, FiPaperclip, FiSmile } from "react-icons/fi";
 import dynamic from "next/dynamic";
 
-// Dynamically load emoji picker for better performance
 const EmojiPicker = dynamic(() => import("./EmojiPicker"), {
   loading: () => <div className="text-gray-400">Loading emojis...</div>,
   ssr: false
@@ -101,7 +100,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const xhrRef = useRef<XMLHttpRequest | null>(null);
 
-    // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
       clear: () => {
@@ -163,7 +161,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       setUploadProgress(0);
       setError(null);
 
-      // Validate Cloudinary environment variables
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
       
@@ -177,7 +174,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         formData.append("file", file);
         formData.append("upload_preset", uploadPreset);
 
-        // FIXED: Removed space in Cloudinary URL
         const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
         
         const xhr = new XMLHttpRequest();
@@ -227,7 +223,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
       }
-      // Reset file input to allow re-selecting same file
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -245,7 +240,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       setImageUrl(null);
       setUploading(false);
       setError(null);
-      // Reset file input to allow re-selecting same file
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -262,7 +256,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           URL.revokeObjectURL(previewUrl);
           setPreviewUrl(null);
         }
-        // Reset file input after sending
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -277,7 +270,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       }
     };
 
-    // Drag and drop handlers
     const handleDragOver = (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -296,7 +288,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       if (files.length > 0) handleFile(files[0]);
     };
 
-    // Paste image
     const handlePaste = (e: React.ClipboardEvent) => {
       const items = e.clipboardData.items;
       for (let i = 0; i < items.length; i++) {
@@ -332,7 +323,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     return (
       <div className="w-full pb-[env(safe-area-inset-bottom)]" ref={containerRef}>
-        {/* Error */}
         {error && (
           <div className="mb-2 p-2 bg-red-900/30 text-red-200 rounded-lg text-sm flex items-center border border-red-700/50">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -346,7 +336,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           </div>
         )}
 
-        {/* Image preview */}
         {(previewUrl || imageUrl) && (
           <div className="relative mb-3 max-w-[200px] rounded-xl overflow-hidden border-2 border-purple-500/60 bg-gray-800">
             <div className="relative w-full aspect-square">
@@ -374,7 +363,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           </div>
         )}
 
-        {/* Main input - FIXED for all devices */}
         <div
           ref={dropZoneRef}
           className={`flex items-end space-x-2 p-2 rounded-xl transition-all duration-200 ${
@@ -386,7 +374,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {/* File input - MOST RELIABLE IMPLEMENTATION FOR ALL DEVICES */}
           <div className="relative flex-shrink-0">
             <input
               id="image-upload"
@@ -396,20 +383,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               className="absolute opacity-0 w-0 h-0 pointer-events-none"
               disabled={uploading}
               onChange={(e) => {
-                console.log("File input changed:", e.target.files?.[0]);
                 const file = e.target.files?.[0];
-                if (file) {
-                  handleFile(file);
-                }
-                // Reset value to allow re-selecting same file
+                if (file) handleFile(file);
                 e.target.value = "";
               }}
             />
             <button
-              onClick={() => {
-                console.log("Triggering file input click");
-                fileInputRef.current?.click();
-              }}
+              onClick={() => fileInputRef.current?.click()}
               className={`cursor-pointer p-2 rounded-lg transition-colors ${
                 uploading
                   ? "opacity-50 cursor-not-allowed"
@@ -422,7 +402,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             </button>
           </div>
 
-          {/* Textarea */}
           <div className="flex-grow relative">
             <textarea
               ref={textareaRef}
@@ -448,7 +427,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             </button>
           </div>
 
-          {/* Send button */}
           <button
             onClick={handleSend}
             disabled={uploading || (!message.trim() && !imageUrl)}
@@ -468,7 +446,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           </button>
         </div>
 
-        {/* Emoji Picker */}
         {showEmojiPicker && (
           <div className="fixed bottom-24 left-0 right-0 z-50 mx-auto max-w-md">
             <EmojiPicker
@@ -478,7 +455,6 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           </div>
         )}
 
-        {/* Drag overlay */}
         {isDragging && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="bg-gray-800 p-8 rounded-2xl shadow-xl border-2 border-dashed border-purple-500 flex flex-col items-center max-w-md text-center">
