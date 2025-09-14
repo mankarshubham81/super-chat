@@ -249,7 +249,9 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           return (
             <motion.div
               key={msg.id}
-              ref={(el: any) => el && (messageRefs.current[msg.id] = el)}
+              ref={(el: HTMLDivElement | null) => {
+                if (el) messageRefs.current[msg.id] = el;
+              }}
               className={`flex my-2 transition-all duration-300 ${isHighlighted ? "ring-4 ring-yellow-400 rounded-xl" : ""}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
