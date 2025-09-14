@@ -99,7 +99,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const dropZoneRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const xhrRef = useRef<XMLHttpRequest | null>(null); // Store xhr for proper abort
+    const xhrRef = useRef<XMLHttpRequest | null>(null);
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
@@ -163,16 +163,25 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       setUploadProgress(0);
       setError(null);
 
+      // Validate Cloudinary environment variables
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+      
+      if (!cloudName || !uploadPreset) {
+        handleUploadError("Cloudinary configuration missing. Please check environment variables.");
+        return;
+      }
+
       try {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+        formData.append("upload_preset", uploadPreset);
 
-        // FIX: Removed space in Cloudinary URL
-        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`;
+        // FIXED: Removed space in Cloudinary URL
+        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
         
         const xhr = new XMLHttpRequest();
-        xhrRef.current = xhr; // Store xhr for aborting
+        xhrRef.current = xhr;
 
         xhr.open("POST", cloudinaryUrl);
         xhr.upload.onprogress = (event) => {
@@ -206,7 +215,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
         xhr.send(formData);
       } catch (e) {
-        handleUploadError(`Upload failed${e}`);
+        handleUploadError(`Upload failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     };
 
@@ -217,7 +226,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
       }
-      // FIX: Reset file input to allow re-selecting same file
+      // Reset file input to allow re-selecting same file
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -235,7 +244,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       setImageUrl(null);
       setUploading(false);
       setError(null);
-      // FIX: Reset file input to allow re-selecting same file
+      // Reset file input to allow re-selecting same file
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -252,7 +261,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           URL.revokeObjectURL(previewUrl);
           setPreviewUrl(null);
         }
-        // FIX: Reset file input after sending
+        // Reset file input after sending
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -376,30 +385,33 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {/* File input */}
-          <label
-            className={`cursor-pointer p-2 rounded-lg transition-colors flex-shrink-0 ${
-              uploading
-                ? "opacity-50 cursor-not-allowed"
-                : "hover:bg-gray-600/50 text-gray-300 hover:text-white"
-            }`}
-            title="Attach an image"
-          >
+          {/* File input - FIXED for mobile compatibility */}
+          <div className="relative flex-shrink-0">
             <input
+              id="image-upload"
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              className="hidden"
+              className="absolute opacity-0 w-0 h-0 pointer-events-none"
               disabled={uploading}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleFile(file);
-                // FIX: Always reset file input value to allow re-selecting same file
                 e.target.value = "";
               }}
             />
-            <FiPaperclip className="w-5 h-5" />
-          </label>
+            <label
+              htmlFor="image-upload"
+              className={`cursor-pointer p-2 rounded-lg transition-colors ${
+                uploading
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:bg-gray-600/50 text-gray-300 hover:text-white"
+              }`}
+              title="Attach an image"
+            >
+              <FiPaperclip className="w-5 h-5" />
+            </label>
+          </div>
 
           {/* Textarea */}
           <div className="flex-grow relative">
