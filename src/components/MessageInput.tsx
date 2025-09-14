@@ -220,6 +220,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     };
 
     const handleUploadError = (message: string) => {
+      console.error("Upload error:", message);
       setError(message);
       setUploading(false);
       if (previewUrl) {
@@ -373,7 +374,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           </div>
         )}
 
-        {/* Main input */}
+        {/* Main input - FIXED for all devices */}
         <div
           ref={dropZoneRef}
           className={`flex items-end space-x-2 p-2 rounded-xl transition-all duration-200 ${
@@ -385,7 +386,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {/* File input - FIXED for mobile compatibility */}
+          {/* File input - MOST RELIABLE IMPLEMENTATION FOR ALL DEVICES */}
           <div className="relative flex-shrink-0">
             <input
               id="image-upload"
@@ -395,22 +396,30 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               className="absolute opacity-0 w-0 h-0 pointer-events-none"
               disabled={uploading}
               onChange={(e) => {
+                console.log("File input changed:", e.target.files?.[0]);
                 const file = e.target.files?.[0];
-                if (file) handleFile(file);
+                if (file) {
+                  handleFile(file);
+                }
+                // Reset value to allow re-selecting same file
                 e.target.value = "";
               }}
             />
-            <label
-              htmlFor="image-upload"
+            <button
+              onClick={() => {
+                console.log("Triggering file input click");
+                fileInputRef.current?.click();
+              }}
               className={`cursor-pointer p-2 rounded-lg transition-colors ${
                 uploading
                   ? "opacity-50 cursor-not-allowed"
                   : "hover:bg-gray-600/50 text-gray-300 hover:text-white"
               }`}
               title="Attach an image"
+              disabled={uploading}
             >
               <FiPaperclip className="w-5 h-5" />
-            </label>
+            </button>
           </div>
 
           {/* Textarea */}
