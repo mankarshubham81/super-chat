@@ -65,7 +65,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
   // ========== SOCKET SETUP ========== //
   useEffect(() => {
-    const socket = io("https://super-chat-backend.onrender.com  ", {
+    const socket = io("https://super-chat-backend.onrender.com", {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: 5,
