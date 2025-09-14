@@ -1,482 +1,189 @@
-import React, { 
-  useState, 
-  useRef, 
-  forwardRef, 
-  useImperativeHandle,
-  useEffect,
-  useCallback
-} from "react";
-import Image from "next/image";
-import { FiSend, FiX, FiPaperclip, FiSmile } from "react-icons/fi";
-import dynamic from "next/dynamic";
+import React, { useState, useRef } from "react";
 
-const EmojiPicker = dynamic(() => import("./EmojiPicker"), {
-  loading: () => <div className="text-gray-400">Loading emojis...</div>,
-  ssr: false
-});
-
-export type MessageInputRef = {
-  focus: () => void;
-  clear: () => void;
-  cancelUpload: () => void;
-  setMessage: (text: string) => void;
-};
-
-type MessageInputProps = {
+export default function MessageInput({
+  onSend,
+  onTyping,
+}: {
   onSend: (message: string, imageUrl?: string) => void;
   onTyping?: () => void;
-};
+}) {
+  const [message, setMessage] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  // const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-const MAX_FILE_SIZE_MB = 20;
-const VALID_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  const startImageUpload = (file: File) => {
+    if (file.size > 20 * 1024 * 1024) {
+      alert("File size too large (max 20MB)");
+      return;
+    }
 
-const CircularProgress = ({ progress, size = 60, strokeWidth = 6 }: { 
-  progress: number; 
-  size?: number; 
-  strokeWidth?: number; 
-}) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (progress / 100) * circumference;
+    const preview = URL.createObjectURL(file);
+    setPreviewUrl(preview);
+    setUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percentComplete = (event.loaded / event.total) * 100;
+        setUploadProgress(Math.round(percentComplete));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        setImageUrl(data.secure_url);
+        URL.revokeObjectURL(preview);
+        setPreviewUrl(null);
+      } else {
+        console.error("Upload failed:", xhr.statusText);
+        alert("Image upload failed");
+        URL.revokeObjectURL(preview);
+        setPreviewUrl(null);
+      }
+      setUploading(false);
+      xhrRef.current = null;
+      
+      // Focus input after upload completes
+      inputRef.current?.focus();
+    };
+
+    xhr.onerror = () => {
+      console.error("Upload error");
+      alert("Image upload failed");
+      URL.revokeObjectURL(preview);
+      setPreviewUrl(null);
+      setUploading(false);
+      xhrRef.current = null;
+      
+      // Focus input after upload fails
+      inputRef.current?.focus();
+    };
+
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`);
+    xhr.send(formData);
+  };
+
+  const handleSend = () => {
+    if (message.trim() || imageUrl) {
+      onSend(message.trim(), imageUrl || undefined);
+      setMessage("");
+      setImageUrl(null);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
+    }
+    
+    // Focus input after sending
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg
-        width={size}
-        height={size}
-        className="transform -rotate-90"
-      >
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#4f46e5"
-          strokeWidth={strokeWidth}
-          strokeOpacity="0.2"
+    <div className="flex flex-col w-full">
+      {(previewUrl || imageUrl) && (
+        <div className="relative mb-2">
+          <img
+            src={previewUrl || imageUrl || "invalid url"}
+            alt="Preview"
+            className="max-w-[150px] h-auto rounded-lg border-2 border-purple-500"
+          />
+          {uploading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-sm rounded-lg">
+              Uploading: {uploadProgress}%
+            </div>
+          )}
+          <button
+            onClick={() => {
+              if (uploading) {
+                xhrRef.current?.abort();
+                setUploading(false);
+                setUploadProgress(0);
+                if (previewUrl) {
+                  URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                }
+              } else {
+                setImageUrl(null);
+              }
+            }}
+            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center space-x-2">
+        <label className="cursor-pointer p-2 hover:bg-purple-100 rounded-lg transition-colors">
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                startImageUpload(file);
+              }
+              e.target.value = ""; // Reset to allow selecting same file again
+            }}
+          />
+          <svg
+            className="w-6 h-6 text-purple-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </label>
+
+        <textarea
+          ref={inputRef}
+          value={message}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            if (onTyping) onTyping();
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Type a message..."
+          className="flex-grow bg-gray-100 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[44px] max-h-32"
+          rows={1}
         />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#8b5cf6"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-purple-600">
-        {progress}%
+
+        <button
+          onClick={handleSend}
+          disabled={uploading || (!message.trim() && !imageUrl)}
+          className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[80px]"
+        >
+          {uploading ? "Uploading..." : "Send"}
+        </button>
       </div>
     </div>
   );
-};
-
-type EmojiSelectData = {
-  id: string;
-  name: string;
-  native: string;
-  unified: string;
-  shortcodes: string;
-  keywords?: string[];
-};
-
-const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
-  ({ onSend, onTyping }, ref) => {
-    const [message, setMessage] = useState("");
-    const [imageUrl, setImageUrl] = useState<string | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [uploading, setUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [error, setError] = useState<string | null>(null);
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const dropZoneRef = useRef<HTMLDivElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const xhrRef = useRef<XMLHttpRequest | null>(null);
-
-    useImperativeHandle(ref, () => ({
-      focus: () => textareaRef.current?.focus(),
-      clear: () => {
-        setMessage("");
-        resetTextareaHeight();
-        cancelUpload();
-      },
-      cancelUpload: () => cancelUpload(),
-      setMessage: (text: string) => setMessage(text)
-    }));
-
-    const resetTextareaHeight = useCallback(() => {
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-        textareaRef.current.style.height = "44px";
-      }
-    }, []);
-
-    const autoResizeTextarea = useCallback(() => {
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-        const newHeight = Math.min(
-          textareaRef.current.scrollHeight,
-          132
-        );
-        textareaRef.current.style.height = `${newHeight}px`;
-        textareaRef.current.style.overflowY = newHeight >= 132 ? "auto" : "hidden";
-      }
-    }, []);
-
-    useEffect(() => {
-      autoResizeTextarea();
-    }, [message, autoResizeTextarea]);
-
-    const validateFile = (file: File): boolean => {
-      if (!VALID_MIME_TYPES.includes(file.type)) {
-        setError("Unsupported file type. Please upload an image (JPEG, PNG, GIF, WEBP).");
-        return false;
-      }
-      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        setError(`File size exceeds limit (max ${MAX_FILE_SIZE_MB}MB)`);
-        return false;
-      }
-      return true;
-    };
-
-    const handleFile = (file: File | null) => {
-      if (!file) return;
-      setError(null);
-      if (!validateFile(file)) return;
-
-      const preview = URL.createObjectURL(file);
-      setPreviewUrl(preview);
-      startImageUpload(file);
-    };
-
-    const startImageUpload = async (file: File) => {
-      setUploading(true);
-      setUploadProgress(0);
-      setError(null);
-
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-      
-      if (!cloudName || !uploadPreset) {
-        handleUploadError("Cloudinary configuration missing. Please check environment variables.");
-        return;
-      }
-
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", uploadPreset);
-
-        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
-        
-        const xhr = new XMLHttpRequest();
-        xhrRef.current = xhr;
-
-        xhr.open("POST", cloudinaryUrl);
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = (event.loaded / event.total) * 100;
-            setUploadProgress(Math.round(percentComplete));
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status === 200) {
-            const data = JSON.parse(xhr.responseText);
-            setImageUrl(data.secure_url);
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            setPreviewUrl(null);
-            setError(null);
-          } else {
-            handleUploadError(`Upload failed: ${xhr.statusText}`);
-          }
-          setUploading(false);
-          textareaRef.current?.focus();
-        };
-
-        xhr.onerror = () => {
-          handleUploadError("Network error during upload");
-        };
-
-        xhr.onabort = () => {
-          handleUploadError("Upload aborted");
-        };
-
-        xhr.send(formData);
-      } catch (e) {
-        handleUploadError(`Upload failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    };
-
-    const handleUploadError = (message: string) => {
-      console.error("Upload error:", message);
-      setError(message);
-      setUploading(false);
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
-      }
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    };
-
-    const cancelUpload = () => {
-      if (xhrRef.current) {
-        xhrRef.current.abort();
-        xhrRef.current = null;
-      }
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
-      }
-      setImageUrl(null);
-      setUploading(false);
-      setError(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    };
-
-    const handleSend = () => {
-      if (message.trim() || imageUrl) {
-        onSend(message.trim(), imageUrl || undefined);
-        setMessage("");
-        setImageUrl(null);
-        resetTextareaHeight();
-        setError(null);
-        if (previewUrl) {
-          URL.revokeObjectURL(previewUrl);
-          setPreviewUrl(null);
-        }
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-      }
-      textareaRef.current?.focus();
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!isDragging) setIsDragging(true);
-    };
-    const handleDragLeave = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-    };
-    const handleDrop = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      const files = e.dataTransfer.files;
-      if (files.length > 0) handleFile(files[0]);
-    };
-
-    const handlePaste = (e: React.ClipboardEvent) => {
-      const items = e.clipboardData.items;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith("image/")) {
-          const file = items[i].getAsFile();
-          if (file) {
-            handleFile(file);
-            e.preventDefault();
-            break;
-          }
-        }
-      }
-    };
-
-    const addEmoji = (emoji: EmojiSelectData) => {
-      setMessage((prev) => prev + emoji.native);
-      textareaRef.current?.focus();
-    };
-
-    useEffect(() => {
-      const handleClickOutside = (e: MouseEvent) => {
-        if (
-          containerRef.current &&
-          !containerRef.current.contains(e.target as Node) &&
-          !(e.target as Element).closest(".emoji-picker")
-        ) {
-          setShowEmojiPicker(false);
-        }
-      };
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    return (
-      <div className="w-full pb-[env(safe-area-inset-bottom)]" ref={containerRef}>
-        {error && (
-          <div className="mb-2 p-2 bg-red-900/30 text-red-200 rounded-lg text-sm flex items-center border border-red-700/50">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                clipRule="evenodd"
-              />
-            </svg>
-            {error}
-          </div>
-        )}
-
-        {(previewUrl || imageUrl) && (
-          <div className="relative mb-3 max-w-[200px] rounded-xl overflow-hidden border-2 border-purple-500/60 bg-gray-800">
-            <div className="relative w-full aspect-square">
-              <Image
-                src={previewUrl || imageUrl!}
-                alt="Preview"
-                fill
-                style={{ objectFit: "contain" }}
-              />
-            </div>
-
-            {uploading && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                <CircularProgress progress={uploadProgress} size={80} strokeWidth={6} />
-              </div>
-            )}
-
-            <button
-              onClick={cancelUpload}
-              className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-colors shadow-lg focus:outline-none focus:ring-2 focus:ring-red-400"
-              aria-label="Remove image"
-            >
-              <FiX />
-            </button>
-          </div>
-        )}
-
-        <div
-          ref={dropZoneRef}
-          className={`flex items-end space-x-2 p-2 rounded-xl transition-all duration-200 ${
-            isDragging
-              ? "bg-purple-900/30 ring-2 ring-purple-500"
-              : "bg-gray-700/30 backdrop-blur-sm"
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <div className="relative flex-shrink-0">
-            <input
-              id="image-upload"
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="absolute opacity-0 w-0 h-0 pointer-events-none"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFile(file);
-                e.target.value = "";
-              }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className={`cursor-pointer p-2 rounded-lg transition-colors ${
-                uploading
-                  ? "opacity-50 cursor-not-allowed"
-                  : "hover:bg-gray-600/50 text-gray-300 hover:text-white"
-              }`}
-              title="Attach an image"
-              disabled={uploading}
-            >
-              <FiPaperclip className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex-grow relative">
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
-                if (onTyping) onTyping();
-              }}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder="Type a message..."
-              className="w-full bg-gray-600/30 backdrop-blur-sm text-white rounded-xl p-2 pl-3 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[44px] max-h-32 transition-all border border-gray-600 pr-10"
-              rows={1}
-              disabled={uploading}
-            />
-            <button
-              onClick={() => setShowEmojiPicker((prev) => !prev)}
-              className="absolute right-2 bottom-2 text-gray-400 hover:text-white transition-colors"
-              disabled={uploading}
-              style={{ bottom: "12px" }}
-            >
-              <FiSmile className="w-6 h-6" />
-            </button>
-          </div>
-
-          <button
-            onClick={handleSend}
-            disabled={uploading || (!message.trim() && !imageUrl)}
-            className={`flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full font-medium transition-colors ${
-              uploading
-                ? "bg-purple-600/50 cursor-wait"
-                : !message.trim() && !imageUrl
-                ? "bg-gray-600 cursor-not-allowed"
-                : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg"
-            }`}
-          >
-            {uploading ? (
-              <div className="w-4 h-4 border-t-2 border-white border-solid rounded-full animate-spin"></div>
-            ) : (
-              <FiSend className="w-5 h-5 text-gray-200" />
-            )}
-          </button>
-        </div>
-
-        {showEmojiPicker && (
-          <div className="fixed bottom-24 left-0 right-0 z-50 mx-auto max-w-md">
-            <EmojiPicker
-              onSelect={addEmoji}
-              onClickOutside={() => setShowEmojiPicker(false)}
-            />
-          </div>
-        )}
-
-        {isDragging && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm">
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl border-2 border-dashed border-purple-500 flex flex-col items-center max-w-md text-center">
-              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                <FiPaperclip className="w-8 h-8 text-white" />
-              </div>
-              <p className="text-xl font-semibold text-white mb-2">
-                Drop to upload image
-              </p>
-              <p className="text-gray-400">
-                Supports JPG, PNG, GIF (max {MAX_FILE_SIZE_MB}MB)
-              </p>
-              <p className="text-gray-500 text-sm mt-3">
-                Release your file to attach it to the message
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-);
-
-MessageInput.displayName = "MessageInput";
-export default MessageInput;
+}
