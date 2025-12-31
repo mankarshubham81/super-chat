@@ -36,10 +36,10 @@ export default function HomePage() {
             Welcome to <span className="text-yellow-300">Super Private Chat</span>
           </h1>
           <p className="text-lg font-medium max-w-xl mx-auto leading-relaxed">
-            Start a private chat instantly—no sign-up or login required! Begin chatting in seconds by entering a room name and name, then share the link for friends, family, or loved ones to join easily.
+            Start a private chat instantly no sign-up or login required! Begin chatting in seconds by entering a room name and name, then share the link for friends, family, or loved ones to join easily.
             <br />
             <span className="font-bold text-yellow-200">
-              It&apos;s fast, secure, and effortless—create your room and start chatting now!
+              It&apos;s fast, secure, and effortless create your room and start chatting now!
             </span>
           </p>
         </div>
