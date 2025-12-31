@@ -15,6 +15,7 @@ type Message = {
   reactions?: Record<string, number>;
   replyTo?: string | null;
   imageUrl?: string;
+  videoUrl?: string;
 };
 
 type User = {
@@ -159,11 +160,11 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     }, 100);
   }, []);
 
-  const sendMessage = (text: string, imageUrl?: string) => {
+  const sendMessage = (text: string, imageUrl?: string, videoUrl?: string) => {
     if (!socketRef.current) return;
     socketRef.current.emit("send-message", {
       room,
-      message: { text, replyTo: replyingTo?.id || null, imageUrl },
+      message: { text, replyTo: replyingTo?.id || null, imageUrl, videoUrl },
     });
     setReplyingTo(null);
     scrollToBottom();
@@ -338,6 +339,17 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
               />
             </div>
           )}
+          {msg.videoUrl && (
+            <div className="relative w-full mb-2 rounded-xl overflow-hidden border border-white/20 bg-black/30">
+              <video
+                src={msg.videoUrl}
+                controls
+                preload="metadata"
+                className="w-full h-48 object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
           <div className="text-[15px] leading-snug">
             {renderMessageText(msg.text)}
           </div>
@@ -445,7 +457,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           <div className="truncate pr-2">
             <strong className="text-yellow-300">Replying to:</strong>{" "}
             <span className="italic">
-              {replyingTo.text || (replyingTo.imageUrl ? "[Image]" : "")}
+              {replyingTo.text || (replyingTo.imageUrl ? "[Image]" : replyingTo.videoUrl ? "[Video]" : "")}
             </span>
           </div>
           <div className="flex gap-2 ml-4 shrink-0">
