@@ -24,12 +24,14 @@ export type MessageInputRef = {
 };
 
 type MessageInputProps = {
-  onSend: (message: string, imageUrl?: string) => void;
+  onSend: (message: string, imageUrl?: string, videoUrl?: string) => void;
   onTyping?: () => void;
 };
 
 const MAX_FILE_SIZE_MB = 20;
+const MAX_VIDEO_SIZE_MB = 50;
 const VALID_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const VALID_VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
 
 const CircularProgress = ({ progress, size = 60, strokeWidth = 6 }: { 
   progress: number; 
@@ -88,7 +90,9 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
   ({ onSend, onTyping }, ref) => {
     const [message, setMessage] = useState("");
     const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewKind, setPreviewKind] = useState<"image" | "video" | null>(null);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
@@ -100,6 +104,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const xhrRef = useRef<XMLHttpRequest | null>(null); // Store xhr for proper abort
+    const previewUrlRef = useRef<string | null>(null);
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
@@ -136,13 +141,38 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       autoResizeTextarea();
     }, [message, autoResizeTextarea]);
 
-    const validateFile = (file: File): boolean => {
-      if (!VALID_MIME_TYPES.includes(file.type)) {
-        setError("Unsupported file type. Please upload an image (JPEG, PNG, GIF, WEBP).");
+    useEffect(() => {
+      return () => {
+        if (xhrRef.current) {
+          xhrRef.current.abort();
+          xhrRef.current = null;
+        }
+        if (previewUrlRef.current) {
+          URL.revokeObjectURL(previewUrlRef.current);
+          previewUrlRef.current = null;
+        }
+      };
+    }, []);
+
+    const validateFile = (file: File, kind: "image" | "video"): boolean => {
+      if (kind === "image") {
+        if (!VALID_MIME_TYPES.includes(file.type)) {
+          setError("Unsupported file type. Please upload an image (JPEG, PNG, GIF, WEBP)." );
+          return false;
+        }
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+          setError(`File size exceeds limit (max ${MAX_FILE_SIZE_MB}MB)`);
+          return false;
+        }
+        return true;
+      }
+
+      if (!VALID_VIDEO_MIME_TYPES.includes(file.type)) {
+        setError("Unsupported file type. Please upload a video (MP4, WebM, OGG, MOV)." );
         return false;
       }
-      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        setError(`File size exceeds limit (max ${MAX_FILE_SIZE_MB}MB)`);
+      if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
+        setError(`File size exceeds limit (max ${MAX_VIDEO_SIZE_MB}MB)`);
         return false;
       }
       return true;
@@ -151,25 +181,43 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const handleFile = (file: File | null) => {
       if (!file) return;
       setError(null);
-      if (!validateFile(file)) return;
+      const kind: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
+      if (!validateFile(file, kind)) return;
+
+      setImageUrl(null);
+      setVideoUrl(null);
+
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
 
       const preview = URL.createObjectURL(file);
+      previewUrlRef.current = preview;
       setPreviewUrl(preview);
-      startImageUpload(file);
+      setPreviewKind(kind);
+      startMediaUpload(file, kind, preview);
     };
 
-    const startImageUpload = async (file: File) => {
+    const startMediaUpload = async (file: File, kind: "image" | "video", preview: string) => {
       setUploading(true);
       setUploadProgress(0);
       setError(null);
 
       try {
+        const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+        if (!uploadPreset || !cloudName) {
+          handleUploadError("Cloudinary configuration is missing");
+          return;
+        }
+
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+        formData.append("upload_preset", uploadPreset);
 
         // Fixed Cloudinary URL (removed space)
-        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`;
+        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${kind}/upload`;
         
         const xhr = new XMLHttpRequest();
         xhrRef.current = xhr; // Store xhr for aborting
@@ -185,12 +233,27 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         xhr.onload = () => {
           if (xhr.status === 200) {
             const data = JSON.parse(xhr.responseText);
-            setImageUrl(data.secure_url);
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            if (kind === "image") {
+              setImageUrl(data.secure_url);
+              setVideoUrl(null);
+            } else {
+              setVideoUrl(data.secure_url);
+              setImageUrl(null);
+            }
+            if (preview) URL.revokeObjectURL(preview);
+            if (previewUrlRef.current === preview) previewUrlRef.current = null;
             setPreviewUrl(null);
+            setPreviewKind(null);
             setError(null);
           } else {
-            handleUploadError(`Upload failed: ${xhr.statusText}`);
+            let detailedMessage: string | null = null;
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              detailedMessage = parsed?.error?.message || parsed?.message || null;
+            } catch {
+              detailedMessage = null;
+            }
+            handleUploadError(detailedMessage ? `Upload failed: ${detailedMessage}` : `Upload failed: ${xhr.statusText || "Unknown error"}`);
           }
           setUploading(false);
           textareaRef.current?.focus();
@@ -206,17 +269,19 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
         xhr.send(formData);
       } catch (e) {
-        handleUploadError(`Upload failed${e}`);
+        handleUploadError(`Upload failed: ${String(e)}`);
       }
     };
 
     const handleUploadError = (message: string) => {
       setError(message);
       setUploading(false);
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
       }
+      setPreviewUrl(null);
+      setPreviewKind(null);
       // Reset file input to allow re-selecting same file
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -228,11 +293,14 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         xhrRef.current.abort();
         xhrRef.current = null;
       }
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
       }
+      setPreviewUrl(null);
       setImageUrl(null);
+      setVideoUrl(null);
+      setPreviewKind(null);
       setUploading(false);
       setError(null);
       // Reset file input to allow re-selecting same file
@@ -242,16 +310,19 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     };
 
     const handleSend = () => {
-      if (message.trim() || imageUrl) {
-        onSend(message.trim(), imageUrl || undefined);
+      if (message.trim() || imageUrl || videoUrl) {
+        onSend(message.trim(), imageUrl || undefined, videoUrl || undefined);
         setMessage("");
         setImageUrl(null);
+        setVideoUrl(null);
         resetTextareaHeight();
         setError(null);
-        if (previewUrl) {
-          URL.revokeObjectURL(previewUrl);
-          setPreviewUrl(null);
+        if (previewUrlRef.current) {
+          URL.revokeObjectURL(previewUrlRef.current);
+          previewUrlRef.current = null;
         }
+        setPreviewUrl(null);
+        setPreviewKind(null);
         // Reset file input after sending
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
@@ -307,10 +378,11 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
+        if (!(e.target instanceof Element)) return;
         if (
           containerRef.current &&
           !containerRef.current.contains(e.target as Node) &&
-          !(e.target as Element).closest(".emoji-picker")
+          !e.target.closest(".emoji-picker")
         ) {
           setShowEmojiPicker(false);
         }
@@ -336,15 +408,24 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         )}
 
         {/* Image preview */}
-        {(previewUrl || imageUrl) && (
+        {(previewUrl || imageUrl || videoUrl) && (
           <div className="relative mb-3 max-w-[200px] rounded-xl overflow-hidden border-2 border-purple-500/60 bg-gray-800">
             <div className="relative w-full aspect-square">
-              <Image
-                src={previewUrl || imageUrl!}
-                alt="Preview"
-                fill
-                style={{ objectFit: "contain" }}
-              />
+              {((previewUrl && previewKind === "video") || (!previewUrl && videoUrl)) ? (
+                <video
+                  src={previewUrl || videoUrl!}
+                  controls
+                  preload="metadata"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <Image
+                  src={previewUrl || imageUrl!}
+                  alt="Preview"
+                  fill
+                  style={{ objectFit: "contain" }}
+                />
+              )}
             </div>
 
             {uploading && (
@@ -354,6 +435,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             )}
 
             <button
+              type="button"
               onClick={cancelUpload}
               className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-colors shadow-lg focus:outline-none focus:ring-2 focus:ring-red-400"
               aria-label="Remove image"
@@ -383,12 +465,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 : "hover:bg-gray-600/50 text-gray-300 hover:text-white"
             }`}
             title="Attach an image"
+            aria-label="Attach an image"
           >
             {/* Critical fix: Use absolute positioning instead of hidden class */}
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               style={{ 
                 position: 'absolute', 
                 left: '-9999px', 
@@ -422,10 +505,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               disabled={uploading}
             />
             <button
+              type="button"
               onClick={() => setShowEmojiPicker((prev) => !prev)}
               className="absolute right-2 bottom-2 text-gray-400 hover:text-white transition-colors"
               disabled={uploading}
               style={{ bottom: "12px" }}
+              aria-label="Open emoji picker"
+              aria-expanded={showEmojiPicker}
             >
               <FiSmile className="w-6 h-6" />
             </button>
@@ -433,12 +519,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {/* Send button */}
           <button
+            type="button"
             onClick={handleSend}
-            disabled={uploading || (!message.trim() && !imageUrl)}
+            disabled={uploading || (!message.trim() && !imageUrl && !videoUrl)}
             className={`flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full font-medium transition-colors ${
               uploading
                 ? "bg-purple-600/50 cursor-wait"
-                : !message.trim() && !imageUrl
+                : !message.trim() && !imageUrl && !videoUrl
                 ? "bg-gray-600 cursor-not-allowed"
                 : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg"
             }`}
@@ -469,10 +556,10 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 <FiPaperclip className="w-8 h-8 text-white" />
               </div>
               <p className="text-xl font-semibold text-white mb-2">
-                Drop to upload image
+                Drop to upload media
               </p>
               <p className="text-gray-400">
-                Supports JPG, PNG, GIF (max {MAX_FILE_SIZE_MB}MB)
+                Supports images (max {MAX_FILE_SIZE_MB}MB) and videos (max {MAX_VIDEO_SIZE_MB}MB)
               </p>
               <p className="text-gray-500 text-sm mt-3">
                 Release your file to attach it to the message
