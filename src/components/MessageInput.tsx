@@ -1,10 +1,30 @@
-import React, { useState, useRef } from "react";
+import React, { 
+  useState, 
+  useRef, 
+  forwardRef, 
+  useImperativeHandle,
+  useEffect,
+  useCallback
+} from "react";
+import Image from "next/image";
+import { FiSend, FiX, FiPaperclip, FiSmile } from "react-icons/fi";
+import dynamic from "next/dynamic";
 
-export default function MessageInput({
-  onSend,
-  onTyping,
-}: {
-  onSend: (message: string, imageUrl?: string) => void;
+// Dynamically load emoji picker for better performance
+const EmojiPicker = dynamic(() => import("./EmojiPicker"), {
+  loading: () => <div className="text-gray-400">Loading emojis...</div>,
+  ssr: false
+});
+
+export type MessageInputRef = {
+  focus: () => void;
+  clear: () => void;
+  cancelUpload: () => void;
+  setMessage: (text: string) => void;
+};
+
+type MessageInputProps = {
+  onSend: (message: string, imageUrl?: string, videoUrl?: string) => void;
   onTyping?: () => void;
 }) {
   const [message, setMessage] = useState("");
@@ -13,8 +33,6 @@ export default function MessageInput({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
-  // const inputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const startImageUpload = (file: File) => {
     if (file.size > 20 * 1024 * 1024) {
@@ -41,24 +59,34 @@ export default function MessageInput({
       }
     };
 
-    xhr.onload = () => {
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText);
-        setImageUrl(data.secure_url);
-        URL.revokeObjectURL(preview);
-        setPreviewUrl(null);
-      } else {
-        console.error("Upload failed:", xhr.statusText);
-        alert("Image upload failed");
-        URL.revokeObjectURL(preview);
-        setPreviewUrl(null);
-      }
-      setUploading(false);
-      xhrRef.current = null;
-      
-      // Focus input after upload completes
-      inputRef.current?.focus();
-    };
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            const data = JSON.parse(xhr.responseText);
+            if (kind === "image") {
+              setImageUrl(data.secure_url);
+              setVideoUrl(null);
+            } else {
+              setVideoUrl(data.secure_url);
+              setImageUrl(null);
+            }
+            if (preview) URL.revokeObjectURL(preview);
+            if (previewUrlRef.current === preview) previewUrlRef.current = null;
+            setPreviewUrl(null);
+            setPreviewKind(null);
+            setError(null);
+          } else {
+            let detailedMessage: string | null = null;
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              detailedMessage = parsed?.error?.message || parsed?.message || null;
+            } catch {
+              detailedMessage = null;
+            }
+            handleUploadError(detailedMessage ? `Upload failed: ${detailedMessage}` : `Upload failed: ${xhr.statusText || "Unknown error"}`);
+          }
+          setUploading(false);
+          textareaRef.current?.focus();
+        };
 
     xhr.onerror = () => {
       console.error("Upload error");
@@ -67,36 +95,47 @@ export default function MessageInput({
       setPreviewUrl(null);
       setUploading(false);
       xhrRef.current = null;
-      
-      // Focus input after upload fails
-      inputRef.current?.focus();
     };
 
     xhr.open("POST", `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`);
     xhr.send(formData);
   };
 
-  const handleSend = () => {
-    if (message.trim() || imageUrl) {
-      onSend(message.trim(), imageUrl || undefined);
-      setMessage("");
-      setImageUrl(null);
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
+    const handleSend = () => {
+      if (message.trim() || imageUrl || videoUrl) {
+        onSend(message.trim(), imageUrl || undefined, videoUrl || undefined);
+        setMessage("");
+        setImageUrl(null);
+        setVideoUrl(null);
+        resetTextareaHeight();
+        setError(null);
+        if (previewUrlRef.current) {
+          URL.revokeObjectURL(previewUrlRef.current);
+          previewUrlRef.current = null;
+        }
         setPreviewUrl(null);
       }
-    }
-    
-    // Focus input after sending
-    inputRef.current?.focus();
-  };
+    };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+    const addEmoji = (emoji: EmojiSelectData) => {
+      setMessage((prev) => prev + emoji.native);
+      textareaRef.current?.focus();
+    };
+
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (!(e.target instanceof Element)) return;
+        if (
+          containerRef.current &&
+          !containerRef.current.contains(e.target as Node) &&
+          !e.target.closest(".emoji-picker")
+        ) {
+          setShowEmojiPicker(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
   return (
     <div className="flex flex-col w-full">
@@ -179,7 +218,7 @@ export default function MessageInput({
         <button
           onClick={handleSend}
           disabled={uploading || (!message.trim() && !imageUrl)}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[80px]"
+          className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {uploading ? "Uploading..." : "Send"}
         </button>

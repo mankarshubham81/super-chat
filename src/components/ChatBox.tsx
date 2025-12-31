@@ -1,8 +1,11 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import io, { Socket } from "socket.io-client";
-import MessageInput from "./MessageInput";
-import { motion } from "framer-motion";
+import MessageInput, { MessageInputRef } from "./MessageInput";
+import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
+import Image from "next/image";
+import { FiX, FiCornerDownLeft, FiUsers, FiChevronDown } from "react-icons/fi";
+import { BsLightningChargeFill } from "react-icons/bs";
 
 type Message = {
   id: string;
@@ -12,12 +15,31 @@ type Message = {
   reactions?: Record<string, number>;
   replyTo?: string | null;
   imageUrl?: string;
+  videoUrl?: string;
 };
 
 type User = {
   userName: string;
   status: "online" | "typing" | "offline";
 };
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    if (media.matches !== matches) {
+      setMatches(media.matches);
+    }
+    
+    const listener = () => setMatches(media.matches);
+    window.addEventListener("resize", listener);
+    
+    return () => window.removeEventListener("resize", listener);
+  }, [matches, query]);
+
+  return matches;
+}
 
 export default function ChatBox({ room, userName }: { room: string; userName: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,10 +48,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const [showUserList, setShowUserList] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const socketRef = useRef<typeof Socket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messageRefs = useRef<Record<string, HTMLDivElement>>({});
 
   useEffect(() => {
     const socket = io("https://super-chat-backend.onrender.com", {
@@ -42,43 +61,28 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
     socketRef.current = socket;
 
-    const handleConnect = () => {
+    socket.on("connect", () => {
       setSocketConnected(true);
       socket.emit("join-room", { room, userName });
-    };
+    });
 
-    const handleDisconnect = () => {
-      setSocketConnected(false);
-    };
-
-    const handleUserList = (users: User[]) => setActiveUsers(users);
-
-    const handleTypingUsers = (typingUsersList: unknown) => {
+    socket.on("disconnect", () => setSocketConnected(false));
+    socket.on("user-list", (users: User[]) => setActiveUsers(users));
+    socket.on("typing", (typingUsersList: string[]) => {
       if (Array.isArray(typingUsersList)) {
-        setTypingUsers(
-          typingUsersList.filter((typingUser) => typingUser !== userName)
-        );
-      } else {
-        console.warn("Invalid typingUsersList received:", typingUsersList);
-        setTypingUsers([]);
+        setTypingUsers(typingUsersList.filter((u) => u !== userName));
       }
-    };
+    });
 
-    const handleRecentMessages = (recentMessages: Message[]) => {
-      setMessages(recentMessages);
-    };
-
-    const handleReceiveMessage = (message: Message) => {
-      setMessages((prev) => [...prev, { ...message, reactions: {} }]);
-    };
-
-    const handleMessageReaction = ({
-      messageId,
-      reaction,
-    }: {
-      messageId: string;
-      reaction: string;
-    }) => {
+    socket.on("recent-messages", (msgs: Message[]) => setMessages(msgs));
+    socket.on("receive-message", (msg: Message) => {
+      setMessages((prev) => [...prev, { ...msg, reactions: {} }]);
+      if (!isAtBottom) {
+        setNewMessagesIndicator(true);
+      }
+    });
+    socket.on("message-reaction", (payload: { messageId: string; reaction: string }) => {
+      const { messageId, reaction } = payload;
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === messageId
@@ -92,32 +96,14 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
             : msg
         )
       );
-    };
-
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-    socket.on("user-list", handleUserList);
-    socket.on("typing", handleTypingUsers);
-    socket.on("recent-messages", handleRecentMessages);
-    socket.on("receive-message", handleReceiveMessage);
-    socket.on("message-reaction", handleMessageReaction);
+    });
 
     return () => {
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
-      socket.off("user-list", handleUserList);
-      socket.off("typing", handleTypingUsers);
-      socket.off("recent-messages", handleRecentMessages);
-      socket.off("receive-message", handleReceiveMessage);
-      socket.off("message-reaction", handleMessageReaction);
       socket.disconnect();
     };
-  }, [room, userName]);
+  }, [room, userName, isAtBottom]);
 
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  let lastTapTime: number | null = null;
 
   // Auto-scroll to bottom on initial load
   useEffect(() => {
@@ -148,54 +134,20 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     socket.emit("send-message", { room, message });
 
     setReplyingTo(null);
+    scrollToBottom();
   };
 
-  const handleReply = (msg: Message) => {
+  const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
-    
-    // Scroll to message being replied to
-    setTimeout(() => {
-      messageRefs.current[msg.id]?.scrollIntoView({
-        behavior: "smooth",
-        block: "center"
-      });
-      setHighlightedMessageId(msg.id);
-    }, 100);
   };
 
-  const handleTyping = () => {
-    const socket = socketRef.current;
-    if (!socket) return;
+  const formatTimestamp = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true });
 
     socket.emit("typing", { room });
   };
 
   const formatTimestamp = (isoTimestamp: string) => {
     return formatDistanceToNow(new Date(isoTimestamp), { addSuffix: true });
-  };
-
-  // Make URLs clickable
-  const renderMessageText = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(urlRegex);
-
-    return parts.map((part, index) => {
-      if (part.match(urlRegex)) {
-        return (
-          <a
-            key={index}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-300 underline break-all"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {part}
-          </a>
-        );
-      }
-      return part;
-    });
   };
 
   return (
@@ -226,11 +178,9 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h3 className="font-bold text-gray-800 mb-2">Active Users:</h3>
-          <ul className="max-h-60 overflow-y-auto">
+          <ul>
             {activeUsers.map((user, idx) => (
-              <li key={idx} className="text-gray-800 py-1 flex items-center">
-                <span className={`inline-block w-3 h-3 rounded-full mr-2 ${user.status === "online" ? "bg-green-500" : user.status === "typing" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
+              <li key={idx} className="text-gray-800">
                 {user.userName}
               </li>
             ))}
@@ -240,123 +190,112 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
 
       {/* Messages Section */}
       <div
-        className="flex-1 overflow-y-auto flex flex-col p-4 rounded-b-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900"
+        className="flex-1 overflow-y-auto flex flex-col-reverse p-4 space-y-4 space-y-reverse rounded-b-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900"
       >
-        {messages.map((msg) => {
-          const isOriginalMessage = replyingTo?.id === msg.id;
-          const isHighlighted = highlightedMessageId === msg.id;
-          
-          return (
-            <motion.div
-              key={msg.id}
-              ref={(el: any) => el && (messageRefs.current[msg.id] = el)}
-              className={`flex my-2 transition-all duration-300 ${isHighlighted ? "ring-4 ring-yellow-400 rounded-xl" : ""}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              onDoubleClick={() => handleDoubleTap(msg)}
+        {[...messages].reverse().map((msg) => (
+          <motion.div
+            key={msg.id}
+            className={`flex ${
+              msg.sender === userName ? "justify-end" : "justify-start"
+            }`}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragEnd={(event, info) => {
+              if (info.offset.x > 100) {
+                handleReply(msg);
+              }
+            }}
+            onDoubleClick={() => handleReply(msg)}
+            onPointerDown={(e) => handleDoubleTap(e, msg)}
+          >
+            <div
+              className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl select-none ${
+                msg.sender === userName ? "bg-purple-700 text-white" : "bg-indigo-600 text-white"
+              }`}
             >
-              <div
-                className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl w-full ${
-                  msg.sender === userName 
-                    ? "bg-purple-700 text-white ml-auto" 
-                    : "bg-indigo-600 text-white"
-                } ${isOriginalMessage ? "ring-2 ring-yellow-400" : ""}`}
-              >
-                {msg.replyTo && (
-                  <div 
-                    className="mb-2 p-2 rounded bg-indigo-800 border-l-4 border-blue-400 text-gray-200 text-sm italic cursor-pointer"
-                    onClick={() => {
-                      const originalMsg = messages.find(m => m.id === msg.replyTo);
-                      if (originalMsg) {
-                        messageRefs.current[originalMsg.id]?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center"
-                        });
-                        setHighlightedMessageId(originalMsg.id);
-                      }
-                    }}
-                  >
-                    Replying to:{" "}
-                    <span className="font-semibold">
-                      {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
-                    </span>
-                  </div>
-                )}
-                <div className="text-xs font-semibold text-gray-300">
-                  {msg.sender === userName ? "You" : msg.sender}
+              {msg.replyTo && (
+                <div className="mb-2 p-2 rounded bg-green-100 border-l-4 border-green-500 text-gray-700 text-sm italic">
+                  Replying to:{" "}
+                  <span className="font-semibold">
+                    {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
+                  </span>
                 </div>
-                {msg.imageUrl && (
-                  <img
-                    src={msg.imageUrl}
-                    alt="Uploaded content"
-                    className="mt-2 rounded-lg max-w-full h-auto max-h-48 object-cover border-2 border-purple-100"
-                  />
-                )}
-                <p className="break-words">{renderMessageText(msg.text)}</p>
-                <div className="text-right text-xs text-gray-300 mt-1">
-                  {formatTimestamp(msg.timestamp)}
-                </div>
+              )}
+              <div className="text-xs font-semibold text-gray-300">
+                {msg.sender === userName ? "You" : msg.sender}
               </div>
-            </motion.div>
-          )
-        })}
-        <div ref={messagesEndRef} />
+              {msg.imageUrl && (
+                <img
+                  src={msg.imageUrl}
+                  alt="Uploaded content"
+                  className="mt-2 rounded-lg max-w-full h-auto max-h-48 object-cover border-2 border-purple-100"
+                />
+              )}
+              <p>{msg.text}</p>
+              <div className="text-right text-xs text-gray-300 mt-1">
+                {formatTimestamp(msg.timestamp)}
+              </div>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Replying to Section */}
+      {/* Replying To */}
       {replyingTo && (
         <motion.div
-          className="mb-2 bg-yellow-100 border-l-4 border-yellow-500 text-gray-700 p-3 rounded-md shadow-sm flex justify-between items-center"
+          className="bg-yellow-900/30 border-l-4 border-yellow-500 text-gray-200 p-3 flex justify-between items-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
         >
-          <div className="truncate">
-            <strong>Replying to:</strong>{" "}
-            <span className="italic">
-              {replyingTo.text || (replyingTo.imageUrl ? "[Image]" : "")}
-            </span>
-          </div>
           <div>
-            <button
-              className="text-blue-500 underline ml-2"
-              onClick={() => {
-                messageRefs.current[replyingTo.id]?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center"
-                });
-                setHighlightedMessageId(replyingTo.id);
-              }}
-            >
-              View
-            </button>
-            <button
-              className="text-red-500 underline ml-2"
-              onClick={() => setReplyingTo(null)}
-            >
-              Cancel
-            </button>
+            <strong>Replying to:</strong>{" "}
+            <span className="italic">{replyingTo.text}</span>
           </div>
+          <button
+            className="text-red-500 underline ml-2"
+            onClick={() => setReplyingTo(null)}
+          >
+            Cancel
+          </button>
         </motion.div>
       )}
 
       {/* Typing Indicator */}
-      <motion.div
-        className="sticky bottom-28 px-4 text-sm italic text-purple-700 bg-purple-50 rounded-md shadow-md w-max mx-auto py-1"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: typingUsers.length > 0 ? 1 : 0 }}
-        transition={{ duration: 0.2 }}
-      >
-        {typingUsers.length > 0 &&
-          `${typingUsers.join(", ")} ${
-            typingUsers.length > 1 ? "are" : "is"
-          } typing...`}
-      </motion.div>
+      {typingUsers.length > 0 && (
+        <motion.div
+          className="sticky bottom-20 px-4 text-sm text-purple-300 bg-purple-900/30 backdrop-blur-sm rounded-full w-max mx-auto py-1.5"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+        >
+          <div className="flex items-center">
+            <span className="flex">
+              {Array(3).fill(0).map((_, i) => (
+                <motion.span 
+                  key={i}
+                  className="w-1.5 h-1.5 bg-purple-400 rounded-full mx-0.5"
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ 
+                    repeat: Infinity, 
+                    duration: 1.2,
+                    delay: i * 0.2
+                  }}
+                />
+              ))}
+            </span>
+            <span className="ml-2">
+              {typingUsers.join(", ")} {typingUsers.length > 1 ? "are" : "is"} typing...
+            </span>
+          </div>
+        </motion.div>
+      )}
 
-      {/* Message Input */}
-      <div className="sticky bottom-0 rounded-t-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900 p-4 shadow-md">
-        <MessageInput onSend={sendMessage} onTyping={handleTyping} />
+      {/* Input */}
+      <div className="sticky bottom-0 z-10 border-t border-white/5 pb-[env(safe-area-inset-bottom)] bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90">
+        <MessageInput ref={messageInputRef} onSend={sendMessage} onTyping={handleTyping} />
       </div>
     </div>
   );
