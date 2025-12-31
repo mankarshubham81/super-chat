@@ -1,56 +1,83 @@
 // EmojiPicker.tsx
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 
-// Create a local type for the emoji selection
 type EmojiSelectData = {
-    id: string;
-    name: string;
-    native: string;
-    unified: string;
-    shortcodes: string;
-    keywords?: string[];
-  };
-  
-  const EmojiPicker = ({
-    onSelect,
-    onClickOutside,
-  }: {
-    onSelect: (emoji: EmojiSelectData) => void;
-    onClickOutside: () => void;
-  }) => {
-    const pickerRef = useRef<HTMLDivElement>(null);
-  
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-          onClickOutside();
-        }
-      };
-  
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }, [onClickOutside]);
-  
-    return (
-      <div ref={pickerRef} className="shadow-2xl rounded-xl overflow-hidden">
+  id: string;
+  native: string;
+};
+
+const EmojiPicker = ({
+  onSelect,
+  onClickOutside,
+}: {
+  onSelect: (emoji: EmojiSelectData) => void;
+  onClickOutside: () => void;
+}) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState<number>(300);
+
+  // Measure parent width precisely
+  useLayoutEffect(() => {
+    if (!wrapperRef.current) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      setWidth(entry.contentRect.width);
+    });
+
+    observer.observe(wrapperRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Outside click handler
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (
+        pickerRef.current &&
+        !pickerRef.current.contains(e.target as Node)
+      ) {
+        onClickOutside();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClickOutside]);
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="w-full max-w-full"
+    >
+      <div
+        ref={pickerRef}
+        style={{ width }}
+        className="
+          bg-[#1f2937]
+          rounded-xl
+          overflow-hidden
+          shadow-2xl
+        "
+      >
         <Picker
           data={data}
           theme="dark"
           onEmojiSelect={onSelect}
           previewPosition="none"
-          skinTonePosition="none"
-          dynamicWidth={true}
-          perLine={8}
-          navPosition="none"
           searchPosition="none"
+          skinTonePosition="none"
+          navPosition="none"
+          perLine={Math.floor(width / 36)}
+          style={{
+            width: '100%',
+            maxWidth: '100%',
+          }}
         />
       </div>
-    );
-  };
-  
-  export default EmojiPicker;
-  
+    </div>
+  );
+};
+
+export default EmojiPicker;
