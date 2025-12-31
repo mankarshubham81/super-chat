@@ -313,7 +313,7 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
                 {messages.find((m) => m.id === msg.replyTo)?.sender === userName ? "You" : messages.find((m) => m.id === msg.replyTo)?.sender}
               </span>
               :{" "}
-              <span className="truncate inline-block max-w-[180px]">
+              <span className="truncate max-w-[180px]">
                 {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
               </span>
             </div>
