@@ -5,17 +5,14 @@ import "./globals.css";
 
 export default function HomePage() {
   const [roomName, setRoomName] = useState("");
-  const [isRoomNameValid, setIsRoomNameValid] = useState(false);
 
   const handleRoomNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newRoomName = e.target.value;
     setRoomName(newRoomName);
-    setIsRoomNameValid(newRoomName.trim().length > 3);
   };
 
   const clearRoomName = () => {
     setRoomName("");
-    setIsRoomNameValid(false);
   };
 
   return (
@@ -50,7 +47,7 @@ export default function HomePage() {
             <input
               type="text"
               id="room-name-input"
-              placeholder="Enter a room name (min 4 characters)"
+              placeholder="Enter a room name"
               value={roomName}
               onChange={handleRoomNameChange}
               className="w-full border-none rounded-full px-5 py-4 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-500 transition-all"
@@ -69,11 +66,7 @@ export default function HomePage() {
           </div>
           <Link
             href={`/${roomName}`}
-            className={`w-full text-center py-4 rounded-full text-lg font-semibold transition-transform ${
-              isRoomNameValid
-                ? "bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:scale-105 focus:outline-none focus:ring-4 focus:ring-purple-500 shadow-lg"
-                : "bg-gray-400 text-gray-200 cursor-not-allowed"
-            }`}
+            className={`w-full text-center py-4 rounded-full text-lg font-semibold transition-transform bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:scale-105 focus:outline-none focus:ring-4 focus:ring-purple-500 shadow-lg`}
           >
             Create Room
           </Link>
