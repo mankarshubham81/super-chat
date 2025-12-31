@@ -48,8 +48,23 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
   const [showUserList, setShowUserList] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const socketRef = useRef<typeof Socket | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [newMessagesIndicator, setNewMessagesIndicator] = useState(false);
+  const [swipeProgress, setSwipeProgress] = useState<{ id: string; distance: number } | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
+  const socketRef = useRef<typeof Socket | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement>>({});
+  const messageInputRef = useRef<MessageInputRef>(null);
+  const touchStartX = useRef<number | null>(null);
+  const swipeThreshold = isMobile ? 80 : 100;
+  const scrollToBottomTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // ========== SOCKET SETUP ========== //
   useEffect(() => {
     const socket = io("https://super-chat-backend.onrender.com", {
       transports: ["websocket", "polling"],
@@ -103,144 +118,333 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
     };
   }, [room, userName, isAtBottom]);
 
-  let lastTapTime: number | null = null;
-
-  // Auto-scroll to bottom on initial load
+  // Scroll management
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView();
-  }, []);
+    const container = messagesContainerRef.current;
+    if (!container) return;
 
-  // Highlight message temporarily
+    const handleScroll = () => {
+      const isBottom = 
+        container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+      setIsAtBottom(isBottom);
+      if (isBottom && newMessagesIndicator) {
+        setNewMessagesIndicator(false);
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [newMessagesIndicator]);
+
+  useEffect(() => {
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+  }, [messages, isAtBottom]);
+
   useEffect(() => {
     if (highlightedMessageId) {
-      const timer = setTimeout(() => {
-        setHighlightedMessageId(null);
-      }, 2000);
+      const timer = setTimeout(() => setHighlightedMessageId(null), 2000);
       return () => clearTimeout(timer);
     }
   }, [highlightedMessageId]);
 
-  const handleDoubleTap = (msg: Message) => {
-    handleReply(msg);
-  };
+  const scrollToBottom = useCallback(() => {
+    if (scrollToBottomTimeout.current) {
+      clearTimeout(scrollToBottomTimeout.current);
+    }
+    
+    scrollToBottomTimeout.current = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      setNewMessagesIndicator(false);
+    }, 100);
+  }, []);
 
-  const toggleUserList = () => setShowUserList((prev) => !prev);
-
-  const sendMessage = (text: string, imageUrl?: string) => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    const message = { text, replyTo: replyingTo?.id || null, imageUrl };
-    socket.emit("send-message", { room, message });
-
+  const sendMessage = (text: string, imageUrl?: string, videoUrl?: string) => {
+    if (!socketRef.current) return;
+    socketRef.current.emit("send-message", {
+      room,
+      message: { text, replyTo: replyingTo?.id || null, imageUrl, videoUrl },
+    });
     setReplyingTo(null);
     scrollToBottom();
   };
 
   const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
-  };
+    setSwipeProgress(null);
+    
+    setTimeout(() => {
+      messageRefs.current[msg.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedMessageId(msg.id);
+      messageInputRef.current?.focus();
+    }, 100);
+  }, []);
+
+  const handleTyping = (() => {
+    let lastEmit = 0;
+    return () => {
+      const now = Date.now();
+      if (now - lastEmit > 1000 && socketRef.current) {
+        socketRef.current.emit("typing", { room });
+        lastEmit = now;
+      }
+    };
+  })();
 
   const formatTimestamp = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true });
 
-    socket.emit("typing", { room });
+  const renderMessageText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.split(urlRegex).map((part, idx) =>
+      urlRegex.test(part) ? (
+        <a
+          key={idx}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-300 underline break-all hover:text-blue-200 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      ) : (
+        part
+      )
+    );
   };
 
-  const formatTimestamp = (isoTimestamp: string) => {
-    return formatDistanceToNow(new Date(isoTimestamp), { addSuffix: true });
+  // === ENHANCED SWIPE HANDLING === //
+  const handleTouchStart = (e: React.TouchEvent, msg: Message) => {
+    touchStartX.current = e.touches[0].clientX;
+    setSwipeProgress({ id: msg.id, distance: 0 });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent, msg: Message) => {
+    if (touchStartX.current === null) return;
+    
+    const currentX = e.touches[0].clientX;
+    const distance = Math.max(0, currentX - touchStartX.current);
+    
+    if (distance > 0) {
+      setSwipeProgress({ 
+        id: msg.id, 
+        distance: Math.min(distance, swipeThreshold + 50)
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent, msg: Message) => {
+    if (touchStartX.current === null) return;
+    
+    const endX = e.changedTouches[0].clientX;
+    const distance = endX - touchStartX.current;
+    
+    if (distance > swipeThreshold) {
+      handleReply(msg);
+    } else {
+      setSwipeProgress(null);
+    }
+    
+    touchStartX.current = null;
+  };
+
+  const renderMessageItem = (msg: Message) => {
+    const isMine = msg.sender === userName;
+    const isReplyHighlight = highlightedMessageId === msg.id;
+    const isSwiping = swipeProgress?.id === msg.id;
+    const swipeDistance = isSwiping ? swipeProgress.distance : 0;
+    const swipePercentage = Math.min(100, (swipeDistance / swipeThreshold) * 100);
+
+    return (
+      <motion.div
+        key={msg.id}
+        ref={(el: HTMLDivElement | null) => {
+          if (el) messageRefs.current[msg.id] = el;
+        }}
+        className={`flex my-2 relative ${isMine ? "justify-end" : "justify-start"}`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        onDoubleClick={() => handleReply(msg)}
+        onTouchStart={(e) => handleTouchStart(e, msg)}
+        onTouchMove={(e) => handleTouchMove(e, msg)}
+        onTouchEnd={(e) => handleTouchEnd(e, msg)}
+      >
+        {/* Swipe Feedback Indicator */}
+        {isSwiping && (
+          <motion.div 
+            className="absolute inset-y-0 left-0 flex items-center pl-2 z-0"
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: swipePercentage > 10 ? 1 : 0,
+              x: Math.min(swipeDistance, swipeThreshold) - 30
+            }}
+          >
+            <FiCornerDownLeft className="w-6 h-6 text-purple-400" />
+          </motion.div>
+        )}
+
+        {/* Message Content */}
+        <motion.div
+          className={`relative p-4 rounded-2xl shadow-md text-sm font-medium ${isMobile ? 'max-w-[85%]' : 'max-w-xs md:max-w-md'} w-full break-words z-10 transition-all ${
+            isMine 
+              ? "bg-gradient-to-br from-purple-600 to-purple-700 text-white ml-auto" 
+              : "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
+          } ${isReplyHighlight ? "ring-4 ring-yellow-400" : ""}`}
+          style={{ 
+            transform: isSwiping ? `translateX(${swipeDistance}px)` : 'none',
+            transition: isSwiping ? 'none' : 'transform 0.2s ease'
+          }}
+        >
+          {msg.replyTo && (
+            <div
+              className="mb-2 p-2 rounded-lg bg-indigo-800/60 border-l-2 border-blue-400 text-gray-200 text-xs italic cursor-pointer hover:bg-indigo-700/60 transition-colors"
+              onClick={() => {
+                const original = messages.find((m) => m.id === msg.replyTo);
+                if (original) {
+                  messageRefs.current[original.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  setHighlightedMessageId(original.id);
+                  messageInputRef.current?.focus();
+                }
+              }}
+            >
+              <span className="font-semibold text-blue-300">
+                {messages.find((m) => m.id === msg.replyTo)?.sender === userName ? "You" : messages.find((m) => m.id === msg.replyTo)?.sender}
+              </span>
+              :{" "}
+              <span className="truncate inline-block max-w-[180px]">
+                {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
+              </span>
+            </div>
+          )}
+          <div className="text-xs font-semibold text-gray-200 mb-1 flex items-center">
+            {msg.sender === userName ? (
+              <>
+                <span>You</span>
+                <BsLightningChargeFill className="ml-1 text-yellow-300" />
+              </>
+            ) : (
+              msg.sender
+            )}
+          </div>
+          {msg.imageUrl && (
+            <div className="relative w-full h-48 mb-2 rounded-xl overflow-hidden border border-white/20">
+              <Image
+                src={msg.imageUrl}
+                alt="Attached image"
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          )}
+          {msg.videoUrl && (
+            <div className="relative w-full mb-2 rounded-xl overflow-hidden border border-white/20 bg-black/30">
+              <video
+                src={msg.videoUrl}
+                controls
+                preload="metadata"
+                className="w-full h-48 object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+          <div className="text-[15px] leading-snug">
+            {renderMessageText(msg.text)}
+          </div>
+          <div className="text-right text-[11px] text-gray-300 mt-1">
+            {formatTimestamp(msg.timestamp)}
+          </div>
+        </motion.div>
+      </motion.div>
+    );
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-screen-xl mx-auto">
-      {/* Chat Header */}
-      <div className="sticky top-0 z-10 bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900 text-white p-4 shadow-md flex justify-between items-center">
-        <div className="text-lg font-bold">{room}</div>
-        <div className="flex items-center space-x-2">
-          <span
-            className={`text-sm ${socketConnected ? "text-green-400" : "text-red-400"}`}
-          >
-            {socketConnected ? "Connected" : "Disconnected"}
-          </span>
+    <div className="flex flex-col h-screen max-w-screen-xl mx-auto overflow-hidden bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90">
+      {/* Header */}
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90 backdrop-blur-sm text-white p-3 shadow-lg flex justify-between items-center border-b border-white/10">
+        <div className="flex items-center">
+          <div className="text-lg font-bold truncate max-w-[120px] sm:max-w-xs">{room}</div>
+          <div className="ml-2 flex items-center">
+            <span className={`w-2 h-2 rounded-full mr-1 ${socketConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`}></span>
+            <span className="text-xs text-gray-300">
+              {socketConnected ? "Online" : "Offline"}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center space-x-3">
           <button
-            onClick={toggleUserList}
-            className="text-sm bg-purple-700 px-3 py-1 rounded-md hover:bg-purple-900 transition-transform transform hover:scale-105"
+            onClick={() => setShowUserList((prev) => !prev)}
+            className="flex items-center text-sm bg-purple-700/60 hover:bg-purple-600 transition-colors px-3 py-1.5 rounded-lg group"
           >
-            Users ({activeUsers.length})
+            <FiUsers className="mr-1.5" />
+            <span className="hidden sm:inline">{activeUsers.length}</span>
           </button>
         </div>
       </div>
 
       {/* User List */}
-      {showUserList && (
-        <motion.div
-          className="bg-white p-4 shadow-md"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <ul>
-            {activeUsers.map((user, idx) => (
-              <li key={idx} className="text-gray-800">
-                {user.userName}
-              </li>
-            ))}
-          </ul>
-        </motion.div>
-      )}
-
-      {/* Messages Section */}
-      <div
-        className="flex-1 overflow-y-auto flex flex-col-reverse p-4 space-y-4 space-y-reverse rounded-b-lg bg-gradient-to-tr from-purple-900 via-indigo-700 to-purple-900"
-      >
-        {[...messages].reverse().map((msg) => (
+      <AnimatePresence>
+        {showUserList && (
           <motion.div
-            key={msg.id}
-            className={`flex ${
-              msg.sender === userName ? "justify-end" : "justify-start"
+            className={`bg-gray-800/90 backdrop-blur-lg p-4 shadow-xl border-b border-white/10 ${
+              isMobile ? 'fixed inset-0 z-50' : ''
             }`}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            onDragEnd={(event, info) => {
-              if (info.offset.x > 100) {
-                handleReply(msg);
-              }
-            }}
-            onDoubleClick={() => handleReply(msg)}
-            onPointerDown={(e) => handleDoubleTap(e, msg)}
           >
-            <div
-              className={`p-4 rounded-xl shadow-md text-sm font-medium max-w-xl select-none ${
-                msg.sender === userName ? "bg-purple-700 text-white" : "bg-indigo-600 text-white"
-              }`}
-            >
-              {msg.replyTo && (
-                <div className="mb-2 p-2 rounded bg-green-100 border-l-4 border-green-500 text-gray-700 text-sm italic">
-                  Replying to:{" "}
-                  <span className="font-semibold">
-                    {messages.find((m) => m.id === msg.replyTo)?.text || "Message"}
-                  </span>
-                </div>
-              )}
-              <div className="text-xs font-semibold text-gray-300">
-                {msg.sender === userName ? "You" : msg.sender}
-              </div>
-              {msg.imageUrl && (
-                <img
-                  src={msg.imageUrl}
-                  alt="Uploaded content"
-                  className="mt-2 rounded-lg max-w-full h-auto max-h-48 object-cover border-2 border-purple-100"
-                />
-              )}
-              <p>{msg.text}</p>
-              <div className="text-right text-xs text-gray-300 mt-1">
-                {formatTimestamp(msg.timestamp)}
-              </div>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-gray-200">Active Users</h3>
+              <button 
+                onClick={() => setShowUserList(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <FiX size={20} />
+              </button>
             </div>
+            <ul className="max-h-60 overflow-y-auto space-y-2">
+              {activeUsers.map((user, idx) => (
+                <li key={idx} className="text-gray-200 py-1.5 px-3 rounded-lg bg-gray-700/50 flex items-center">
+                  <span className={`inline-block w-2 h-2 rounded-full mr-3 ${
+                    user.status === "online" ? "bg-green-500" :
+                    user.status === "typing" ? "bg-yellow-500 animate-pulse" : "bg-gray-500"
+                  }`} />
+                  <span className="truncate flex-1">{user.userName}</span>
+                  {user.status === "typing" && (
+                    <span className="text-xs text-yellow-400 italic ml-2">typing...</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </motion.div>
-        ))}
+        )}
+      </AnimatePresence>
+
+      {/* Messages */}
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 bg-gradient-to-r from-purple-900/90 via-indigo-800/90 to-purple-900/90 relative pb-24"
+      >
+        {messages.map(renderMessageItem)}
+        <div ref={messagesEndRef} />
+        
+        {/* New Messages Indicator */}
+        {newMessagesIndicator && (
+          <motion.button
+            className="fixed bottom-24 right-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-full shadow-lg z-10 flex items-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            onClick={scrollToBottom}
+          >
+            New messages
+            <FiChevronDown className="ml-2 animate-bounce" />
+          </motion.button>
+        )}
       </div>
 
       {/* Replying To */}
@@ -250,16 +454,26 @@ export default function ChatBox({ room, userName }: { room: string; userName: st
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
-          <div>
-            <strong>Replying to:</strong>{" "}
-            <span className="italic">{replyingTo.text}</span>
+          <div className="truncate pr-2">
+            <strong className="text-yellow-300">Replying to:</strong>{" "}
+            <span className="italic">
+              {replyingTo.text || (replyingTo.imageUrl ? "[Image]" : replyingTo.videoUrl ? "[Video]" : "")}
+            </span>
           </div>
-          <button
-            className="text-red-500 underline ml-2"
-            onClick={() => setReplyingTo(null)}
-          >
-            Cancel
-          </button>
+          <div className="flex gap-2 ml-4 shrink-0">
+            <button
+              className="text-blue-300 hover:text-blue-200 transition-colors"
+              onClick={() => {
+                messageRefs.current[replyingTo.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+                setHighlightedMessageId(replyingTo.id);
+              }}
+            >
+              View
+            </button>
+            <button className="text-red-300 hover:text-red-200 transition-colors" onClick={() => setReplyingTo(null)}>
+              Cancel
+            </button>
+          </div>
         </motion.div>
       )}
 
