@@ -2,11 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-
-type EmojiSelectData = {
-  id: string;
-  native: string;
-};
+import { EmojiSelectData } from "@/types/emoji";
 
 const EmojiPicker = ({
   onSelect,

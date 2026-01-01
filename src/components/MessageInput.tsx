@@ -9,6 +9,7 @@ import React, {
 import Image from "next/image";
 import { FiSend, FiX, FiPaperclip, FiSmile } from "react-icons/fi";
 import dynamic from "next/dynamic";
+import { EmojiSelectData } from "@/types/emoji";
 
 // Dynamically load emoji picker for better performance
 const EmojiPicker = dynamic(() => import("./EmojiPicker"), {
@@ -75,15 +76,6 @@ const CircularProgress = ({ progress, size = 60, strokeWidth = 6 }: {
       </div>
     </div>
   );
-};
-
-type EmojiSelectData = {
-  id: string;
-  name: string;
-  native: string;
-  unified: string;
-  shortcodes: string;
-  keywords?: string[];
 };
 
 const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
